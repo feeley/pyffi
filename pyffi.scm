@@ -26,32 +26,18 @@
 ;; Locate python libs.
 
 (define-macro (gen-meta-info)
-
-  ;; TODO: improve to actually find the appropriate directories
-
-  (let ((os (cdr (shell-command "uname" #t))))
-
-    (cond ((equal? os "Darwin\n")
-           (let ((path "/usr/local/Cellar/python/3.7.6_1/Frameworks/Python.framework/Versions/3.7/"))
-             `(begin
-                (##meta-info
-                 cc-options
-                 ,(string-append "-I" path "include/python3.7m"))
-                (##meta-info
-                 ld-options
-                 ,(string-append path "lib/libpython3.7m.dylib")))))
-
-          ((equal? os "Linux\n")
-           `(begin
-              (##meta-info
-               cc-options
-               "-I/usr/include/python3.5"
-               (##meta-info
-                ld-options
-                "/usr/lib/python3.5/config-3.5m-x86_64-linux-gnu/libpython3.5m.a"))))
-
-          (else
-           (error "OS is not supported, so can't find the python libraries")))))
+  (let* ((cflags (shell-command "python3-config --cflags" #t))
+         (ldflags (shell-command "python3-config --ldflags" #t)))
+    (if (and (= 0 (car cflags))
+             (= 0 (car ldflags)))
+        `(begin
+           (##meta-info
+            cc-options
+            ,(call-with-input-string (cdr cflags) read-line))
+           (##meta-info
+            ld-options
+            ,(call-with-input-string (cdr ldflags) read-line)))
+        (error "can't execute python3-config to find the python library"))))
 
 (gen-meta-info)
 
