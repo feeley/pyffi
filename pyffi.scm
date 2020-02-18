@@ -26,8 +26,32 @@
 ;; Locate python libs.
 
 (define-macro (gen-meta-info)
-  (let* ((cflags (shell-command "python3-config --cflags" #t))
-         (ldflags (shell-command "python3-config --ldflags" #t)))
+  (define (version-to-int v)
+    (string->number
+     (list->string
+      (map (lambda (c) (if (eq? c #\.) #\0 c))
+           (take (drop (string->list v) 7) 5)))))
+
+  (define python3-version
+    (let ((v (shell-command "python3 --version" #t)))
+      (if (= 0 (car v))
+        (version-to-int (cdr v))
+        (error "can't find python3"))))
+
+  (define python3-config-embed (make-parameter #f))
+
+  (define (python3-config-cmd f #!optional (embed (python3-config-embed)))
+    (let ((cmd (string-append "python3-config " f)))
+      (if embed
+        (string-append cmd " --embed")
+        cmd)))
+
+  ;; The --embed flag only applies to Python >= 3.8
+  (if (>= python3-version 30800)
+    (python3-config-embed #t))
+
+  (let* ((cflags  (shell-command (python3-config-cmd "--cflags") #t))
+         (ldflags (shell-command (python3-config-cmd "--ldflags") #t)))
     (if (and (= 0 (car cflags))
              (= 0 (car ldflags)))
         `(begin
@@ -85,11 +109,11 @@ ___SCMOBJ SCMOBJ_to_PyScm(___SCMOBJ src, PyScm *dst, int arg_num) {
 
     if ((obj = PyFloat_FromDouble(___FLONUM_VAL(src))) == NULL)
       return ___FIX(___STOC_HEAP_OVERFLOW_ERR+arg_num);
-   
+
   } else if (___CPXNUMP(src)) {
 
     /* TODO: handle complex */
-   
+
   } else if (___STRINGP(src)) {
 
     if ((obj = PyUnicode_FromKindAndData(___CS_SELECT(PyUnicode_1BYTE_KIND,
