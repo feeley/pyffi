@@ -87,6 +87,9 @@
 (define Py_Initialize
   (c-lambda () void "Py_Initialize"))
 
+(define Py_Finalize
+  (c-lambda () void "Py_Finalize"))
+
 (define PyImport_AddModuleObject
   (c-lambda (PyScm) PyObject* "PyImport_AddModuleObject"))
 
@@ -105,10 +108,36 @@
 (define PyDict_New
   (c-lambda () PyObject*/release "PyDict_New"))
 
+(define PyObject_Str
+  (c-lambda (PyObject*) PyObject* "PyObject_Str"))
+
+(define PyObject_Bytes
+  (c-lambda (PyObject*) PyObject* "PyObject_Bytes"))
+
 (define PyVersion
   (c-lambda () int "PyVersion"))
 
 (define PyUnicode->string
   (c-lambda (PyObject*) scheme-object "PyUnicode_string"))
+
+(define (PyObject->string o)
+  (PyUnicode->string (PyObject_Str o)))
+
+;; PyObject* PyObject_CallMethod(PyObject *obj, const char *name, const char *format, ...)
+(define PyObject_CallMethod
+  (c-lambda (PyObject* nonnull-char-string nonnull-char-string) PyObject* "PyObject_CallMethod"))
+
+;; PyObject* PyImport_ImportModuleEx(const char *name, PyObject *globals, PyObject *locals, PyObject *fromlist)
+(define PyImport_ImportModuleEx
+  (c-lambda (nonnull-char-string PyObject* PyObject* PyObject*) PyObject* "PyImport_ImportModuleEx"))
+
+(define PyImport_ImportModule
+  (c-lambda (nonnull-char-string) PyObject* "PyImport_ImportModule"))
+
+(define PyObject_GetAttr
+  (c-lambda (PyObject* PyObject*) PyObject* "PyObject_GetAttr"))
+
+(define PyUnicode_FromString
+  (c-lambda (nonnull-char-string) PyObject* "PyUnicode_FromString"))
 
 ;;;============================================================================
