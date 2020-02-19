@@ -3,3 +3,6 @@ build:
 
 ln:
 	  ln -s `pwd` "@"
+
+indent:
+		indent -kr -l80 pyffi.c
