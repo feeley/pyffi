@@ -10,12 +10,12 @@ Let's say you develop in `/home/me/dev/gambit-modules`. Follow these instruction
 ```
 cd /home/me/.gambit_userlib
 mkdir github.com
-mkdir feeley
+mkdir github.com/feeley
 cd /home/me/dev/gambit-modules
 git clone https://github.com/feeley/pyffi
 cd pyffi
-gsc -e '(##build-module "pyffi.sld" (quote C) (quote ((module-ref github.com/feeley/pyffi))))'
-ln -s `pwd` @
+make ln
+make
 ln -s /home/me/dev/gambit-modules/pyffi ~/.gambit_userlib/github.com/feeley/pyffi
 gsi github.com/feeley/pyffi/demo
 ```
