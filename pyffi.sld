@@ -4,17 +4,21 @@
 
   (export
 
-Py_eval_input
-Py_file_input
-Py_single_input
+   Py_eval_input
+   Py_file_input
+   Py_single_input
 
-Py_Initialize
-PyImport_AddModuleObject
-PyRun_SimpleString
-PyRun_String
-PyModule_GetDict
-PyDict_New
+   Py_Initialize
+   PyImport_AddModuleObject
+   PyRun_SimpleString
+   PyRun_String
+   PyRun_String*
+   PyModule_GetDict
+   PyDict_New
 
-)
+   PyVersion
+   PyUnicode->string
+
+   )
 
   (include "pyffi.scm"))

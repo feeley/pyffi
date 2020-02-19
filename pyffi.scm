@@ -96,10 +96,19 @@
 (define PyRun_String
   (c-lambda (UTF-8-string int PyObject* PyObject*) PyScm "PyRun_String"))
 
+(define PyRun_String*
+  (c-lambda (UTF-8-string int PyObject* PyObject*) PyObject* "PyRun_String"))
+
 (define PyModule_GetDict
   (c-lambda (PyObject*) PyObject* "PyModule_GetDict"))
 
 (define PyDict_New
   (c-lambda () PyObject*/release "PyDict_New"))
+
+(define PyVersion
+  (c-lambda () int "PyVersion"))
+
+(define PyUnicode->string
+  (c-lambda (PyObject*) scheme-object "PyUnicode_string"))
 
 ;;;============================================================================

@@ -15,5 +15,6 @@
     (define globals (PyModule_GetDict __main__))
     (define locals (PyDict_New))
 
-    (pretty-print
-     (PyRun_String "len('123456789')" Py_eval_input globals locals))))
+    (define pystring (PyRun_String* "\"Hello, world!\"" Py_eval_input globals locals))
+    (pretty-print pystring)
+    (pretty-print (PyUnicode->string pystring))))
