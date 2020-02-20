@@ -71,6 +71,22 @@
 
 ;;;----------------------------------------------------------------------------
 
+
+(define-macro (PyAPI id args ret #!optional (f #f))
+  (let ((sid (if f f (symbol->string id))))
+    `(define ,id
+       (c-lambda ,args ,ret ,sid))))
+
+(define-macro (with-PyAPI . args)
+  (if (not (null? (car args)))
+    (let lp ((args (cdr args))
+             (acc (cons `(PyAPI ,@(car args)) '())))
+      (if (null? args)
+        `(begin ,@acc)
+        (lp (cdr args) (cons `(PyAPI ,@(car args)) acc))))))
+
+
+;; Types
 (c-define-type PyObject "PyObject")
 (c-define-type PyObject*
                (pointer PyObject (PyObject*)))
@@ -80,64 +96,59 @@
 
 (c-define-type PyScm "PyScm" "PYSCM_to_SCMOBJ" "SCMOBJ_to_PYSCM" #t)
 
-(define Py_eval_input   ((c-lambda () int "___return(Py_eval_input);")))
-(define Py_file_input   ((c-lambda () int "___return(Py_file_input);")))
-(define Py_single_input ((c-lambda () int "___return(Py_single_input);")))
 
-(define Py_Initialize
-  (c-lambda () void "Py_Initialize"))
+;; Constants
+(define Py_eval_input    ((c-lambda () int "___return(Py_eval_input);")))
+(define Py_file_input    ((c-lambda () int "___return(Py_file_input);")))
+(define Py_single_input  ((c-lambda () int "___return(Py_single_input);")))
+(define PY_VERSION_HEX   ((c-lambda () int "___return(PY_VERSION_HEX);")))
+(define PY_MAJOR_VERSION ((c-lambda () int "___return(PY_MAJOR_VERSION);")))
+(define PY_MINOR_VERSION ((c-lambda () int "___return(PY_MINOR_VERSION);")))
+(define PY_MICRO_VERSION ((c-lambda () int "___return(PY_MICRO_VERSION);")))
 
-(define Py_Finalize
-  (c-lambda () void "Py_Finalize"))
 
-(define PyImport_AddModuleObject
-  (c-lambda (PyScm) PyObject* "PyImport_AddModuleObject"))
+(with-PyAPI
+ ;; Initialization, Finalization, and Threads
+ (Py_Initialize () void)
+ (Py_Finalize () void)
 
-(define PyRun_SimpleString
-  (c-lambda (UTF-8-string) int "PyRun_SimpleString"))
+ ;; PyImport_*
+ (PyImport_AddModuleObject (PyScm) PyObject*)
+ (PyImport_ImportModule (nonnull-char-string) PyObject*)
+ (PyImport_ImportModuleEx
+  (nonnull-char-string PyObject* PyObject* PyObject*) PyObject*)
 
-(define PyRun_String
-  (c-lambda (UTF-8-string int PyObject* PyObject*) PyScm "PyRun_String"))
+ ;; PyModule_*
+ (PyModule_GetDict (PyObject*) PyObject*)
 
-(define PyRun_String*
-  (c-lambda (UTF-8-string int PyObject* PyObject*) PyObject* "PyRun_String"))
+ ;; PyRun_*
+ (PyRun_SimpleString (UTF-8-string) int)
+ (PyRun_String (UTF-8-string int PyObject* PyObject*) PyScm)
+ (PyRun_String* (UTF-8-string int PyObject* PyObject*) PyObject* "PyRun_String")
 
-(define PyModule_GetDict
-  (c-lambda (PyObject*) PyObject* "PyModule_GetDict"))
+ ;; PyDict_*
+ (PyDict_New () PyObject*/release)
 
-(define PyDict_New
-  (c-lambda () PyObject*/release "PyDict_New"))
+ ;; PyObject_*
+ (PyObject_HasAttr (PyObject* PyObject*) int)
+ (PyObject_HasAttrString (PyObject* nonnull-char-string) int)
+ (PyObject_GetAttr (PyObject* PyObject*) PyObject*)
+ (PyObject_GetAttrString (PyObject* nonnull-char-string) PyObject*)
+ (PyObject_Str (PyObject*) PyObject*)
+ (PyObject_Bytes (PyObject*) PyObject*)
+ (PyObject_CallMethod
+  (PyObject* nonnull-char-string nonnull-char-string) PyObject*)
 
-(define PyObject_Str
-  (c-lambda (PyObject*) PyObject* "PyObject_Str"))
+ ;; PyUnicode_*
+ (PyUnicode_FromString (nonnull-char-string) PyObject*))
 
-(define PyObject_Bytes
-  (c-lambda (PyObject*) PyObject* "PyObject_Bytes"))
 
-(define PyVersion
-  (c-lambda () int "PyVersion"))
-
+;; Utils
 (define PyUnicode->string
   (c-lambda (PyObject*) scheme-object "PyUnicode_string"))
 
 (define (PyObject->string o)
   (PyUnicode->string (PyObject_Str o)))
 
-;; PyObject* PyObject_CallMethod(PyObject *obj, const char *name, const char *format, ...)
-(define PyObject_CallMethod
-  (c-lambda (PyObject* nonnull-char-string nonnull-char-string) PyObject* "PyObject_CallMethod"))
-
-;; PyObject* PyImport_ImportModuleEx(const char *name, PyObject *globals, PyObject *locals, PyObject *fromlist)
-(define PyImport_ImportModuleEx
-  (c-lambda (nonnull-char-string PyObject* PyObject* PyObject*) PyObject* "PyImport_ImportModuleEx"))
-
-(define PyImport_ImportModule
-  (c-lambda (nonnull-char-string) PyObject* "PyImport_ImportModule"))
-
-(define PyObject_GetAttr
-  (c-lambda (PyObject* PyObject*) PyObject* "PyObject_GetAttr"))
-
-(define PyUnicode_FromString
-  (c-lambda (nonnull-char-string) PyObject* "PyUnicode_FromString"))
 
 ;;;============================================================================

@@ -175,12 +175,6 @@ ___SCMOBJ PyScm_to_SCMOBJ(PyScm src, ___SCMOBJ * dst, int arg_num)
   if ((___err = SCMOBJ_to_PyScm(src, &dst, 0)) == ___FIX(___NO_ERR)) {
 #define ___END_SFUN_SCMOBJ_to_PYSCM(src,dst) Py_DECREF(dst); }
 
-int PyVersion()
-{
-    return (PY_MAJOR_VERSION * 10000) + (PY_MINOR_VERSION * 100) +
-	PY_MICRO_VERSION;
-}
-
 ___SCMOBJ PyUnicode_string(PyObject * src)
 {
     ___SCMOBJ obj;
