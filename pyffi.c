@@ -220,3 +220,53 @@ ___SCMOBJ PyUnicode_string(PyObject * src)
 	return ___FIX(___CTOS_TYPE_ERR);
     }
 }
+
+Py_ssize_t Scm_list_length(___SCMOBJ list)
+{
+  ___SCMOBJ list1;
+  ___SCMOBJ list2;
+  Py_ssize_t len;
+
+  list1 = list;
+  list2 = list;
+  len = 0;
+
+  while (___PAIRP(list1)) /* compute length, checking for circular lists */
+    {
+      list1 = ___CDR(list1);
+      len++;
+      if (___EQP(list1,list2) || !___PAIRP(list1))
+        break;
+      list1 = ___CDR(list1);
+      list2 = ___CDR(list2);
+      len++;
+    }
+  return len;
+}
+
+PyObject* SCMOBJ_to_PyList(___SCMOBJ src)
+{
+  ___SCMOBJ temp = src;
+  ___SCMOBJ car;
+
+  Py_ssize_t len = Scm_list_length(temp);
+  PyObject* pylist = PyList_New(len);
+
+  Py_ssize_t index = 0;
+
+  while (___PAIRP(temp))
+    {
+      // Reference is stolen!
+      PyObject* pycar;
+
+      car = ___CAR(temp);
+      temp = ___CDR(temp);
+
+      if (SCMOBJ_to_PyScm(car, &pycar, 0) == ___FIX(___NO_ERR))
+        PyList_SetItem(pylist, index, pycar);
+
+      index++;
+    }
+
+  return pylist;
+}

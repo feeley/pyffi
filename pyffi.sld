@@ -75,6 +75,8 @@
    ;; Other
    PyObject->string
    PyUnicode->string
+   Scm_list_length
+   list->PyList
 
    )
 

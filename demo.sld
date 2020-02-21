@@ -45,6 +45,11 @@
 
     (pretty-print (requests/json r))
 
+    ;; Lists
+    (define pylist (list->PyList '(1 2 "hello" "bonjour")))
+    (pretty-print (PyObject->string pylist))
+
+    ;; DECREFs
     (Py_DECREF globals)
     (Py_DECREF locals)
     (Py_DECREF pyint)
@@ -53,6 +58,7 @@
     (Py_DECREF py/requests)
     (Py_DECREF py/requests_dict)
     (Py_DECREF r)
+    (Py_DECREF pylist)
 
     (Py_Finalize)
 

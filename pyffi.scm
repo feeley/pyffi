@@ -181,5 +181,11 @@
 (define (PyObject->string o)
   (PyUnicode->string (PyObject_Str o)))
 
+(define (list->PyList l)
+  ((c-lambda (scheme-object) PyObject* "SCMOBJ_to_PyList") l))
+
+(define (Scm_list_length l)
+  ((c-lambda (scheme-object) Py_ssize_t "Scm_list_length") l))
+
 
 ;;;============================================================================
