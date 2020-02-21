@@ -69,6 +69,16 @@ ___SCMOBJ SCMOBJ_to_PyScm(___SCMOBJ src, PyScm * dst, int arg_num)
     return ___FIX(___NO_ERR);
 }
 
+PyObject* SCMOBJ_to_PyObject(___SCMOBJ src)
+{
+  PyScm pyobj;
+
+  if (SCMOBJ_to_PyScm(src, &pyobj, 0) == ___FIX(___NO_ERR))
+    return ___CAST(PyObject*, pyobj);
+  else
+    return Py_None;
+}
+
 ___SCMOBJ PyScm_to_SCMOBJ(PyScm src, ___SCMOBJ * dst, int arg_num)
 {
 
