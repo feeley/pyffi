@@ -96,6 +96,8 @@
 
 (c-define-type PyScm "PyScm" "PYSCM_to_SCMOBJ" "SCMOBJ_to_PYSCM" #t)
 
+(c-define-type Py_ssize_t ssize_t)
+
 
 ;; Constants
 (define Py_eval_input    ((c-lambda () int "___return(Py_eval_input);")))
@@ -110,11 +112,18 @@
 (with-PyAPI
  ;; Initialization, Finalization, and Threads
  (Py_Initialize () void)
- (Py_Finalize () void)
+ (Py_Finalize   () void)
+
+ ;; Reference Counting
+ (Py_INCREF  (PyObject*) void)
+ (Py_XINCREF (PyObject*) void)
+ (Py_DECREF  (PyObject*) void)
+ (Py_XDECREF (PyObject*) void)
+ ;; (Py_CLEAR   (PyObject*) void)
 
  ;; PyImport_*
  (PyImport_AddModuleObject (PyScm) PyObject*)
- (PyImport_ImportModule (nonnull-char-string) PyObject*)
+ (PyImport_ImportModule    (nonnull-char-string) PyObject*)
  (PyImport_ImportModuleEx
   (nonnull-char-string PyObject* PyObject* PyObject*) PyObject*)
 
@@ -123,21 +132,43 @@
 
  ;; PyRun_*
  (PyRun_SimpleString (UTF-8-string) int)
- (PyRun_String (UTF-8-string int PyObject* PyObject*) PyScm)
- (PyRun_String* (UTF-8-string int PyObject* PyObject*) PyObject* "PyRun_String")
+ (PyRun_String       (UTF-8-string int PyObject* PyObject*) PyScm)
+ (PyRun_String*
+  (UTF-8-string int PyObject* PyObject*) PyObject* "PyRun_String")
 
  ;; PyDict_*
- (PyDict_New () PyObject*/release)
+ (PyDict_New () PyObject*)
 
  ;; PyObject_*
- (PyObject_HasAttr (PyObject* PyObject*) int)
+ (PyObject_HasAttr       (PyObject* PyObject*) int)
  (PyObject_HasAttrString (PyObject* nonnull-char-string) int)
- (PyObject_GetAttr (PyObject* PyObject*) PyObject*)
- (PyObject_GetAttrString (PyObject* nonnull-char-string) PyObject*)
- (PyObject_Str (PyObject*) PyObject*)
- (PyObject_Bytes (PyObject*) PyObject*)
+ (PyObject_GetAttr       (PyObject* PyObject*) PyObject*) ;; New
+ (PyObject_GetAttrString (PyObject* nonnull-char-string) PyObject*) ;; New
+ (PyObject_Repr          (PyObject*) PyObject*) ;; New
+ (PyObject_Str           (PyObject*) PyObject*) ;; New
+ (PyObject_Bytes         (PyObject*) PyObject*) ;; New
+ (PyObject_Call          (PyObject* PyObject* PyObject*) PyObject*) ;; New
+ (PyObject_CallObject    (PyObject* PyObject*) PyObject*) ;; New
  (PyObject_CallMethod
-  (PyObject* nonnull-char-string nonnull-char-string) PyObject*)
+  (PyObject* nonnull-char-string nonnull-char-string) PyObject*) ;; New
+ (PyObject_IsTrue  (PyObject*) int)
+ (PyObject_Not     (PyObject*) int)
+ (PyObject_Type    (PyObject*) PyObject*) ;; New
+ (PyObject_GetItem (PyObject* PyObject*) PyObject*) ;; New
+ (PyObject_SetItem (PyObject* PyObject* PyObject*) int)
+ (PyObject_DelItem (PyObject* PyObject*) int)
+ (PyObject_Dir     (PyObject*) PyObject*) ;; New
+
+ ;; PyList_*
+ (PyList_Check       (PyObject*) int)
+ (PyList_CheckExact  (PyObject*) int)
+ (PyList_New         (Py_ssize_t) PyObject*) ;; New
+ (PyList_Size        (PyObject*) Py_ssize_t)
+ (PyList_GetItem     (PyObject* Py_ssize_t) PyObject*) ;; Borrowed
+ (PyList_SetItem     (PyObject* Py_ssize_t PyObject*) int) ;; Stolen
+ (PyList_Insert      (PyObject* Py_ssize_t PyObject*) int)
+ (PyList_Append      (PyObject* PyObject*) int)
+ (PyList_AsTuple     (PyObject*) PyObject*) ;; New
 
  ;; PyUnicode_*
  (PyUnicode_FromString (nonnull-char-string) PyObject*))

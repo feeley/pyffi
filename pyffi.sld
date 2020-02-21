@@ -17,6 +17,13 @@
    Py_Initialize
    Py_Finalize
 
+   ;; Reference Counting
+   Py_INCREF
+   Py_XINCREF
+   Py_DECREF
+   Py_XDECREF
+   Py_CLEAR
+
    ;; PyImport_*
    PyImport_AddModuleObject
    PyImport_ImportModule
@@ -38,9 +45,29 @@
    PyObject_HasAttrString
    PyObject_GetAttr
    PyObject_GetAttrString
+   PyObject_Repr
    PyObject_Str
    PyObject_Bytes
+   PyObject_Call
+   PyObject_CallObject
    PyObject_CallMethod
+   PyObject_IsTrue
+   PyObject_Not
+   PyObject_Type
+   PyObject_GetItem
+   PyObject_SetItem
+   PyObject_DelItem
+
+   ;; PyList_*
+   PyList_Check
+   PyList_CheckExact
+   PyList_New
+   PyList_Size
+   PyList_GetItem
+   PyList_SetItem
+   PyList_Insert
+   PyList_Append
+   PyList_AsTuple
 
    ;; PyUnicode_*
    PyUnicode_FromString

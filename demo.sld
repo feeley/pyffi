@@ -25,6 +25,7 @@
     (pretty-print (PyUnicode->string (PyObject_Str pyint))) ;; to scheme string
 
     ;; automatic type conversion
+    ;; automatic DECREF, see C code
     (define pystring (pyrun "\"Hello, world!\""))
     (pretty-print pystring)
 
@@ -44,6 +45,15 @@
 
     (pretty-print (requests/json r))
 
-    ;; (Py_Finalize)
+    (Py_DECREF globals)
+    (Py_DECREF locals)
+    (Py_DECREF pyint)
+    (Py_DECREF py/math)
+    (Py_DECREF pi)
+    (Py_DECREF py/requests)
+    (Py_DECREF py/requests_dict)
+    (Py_DECREF r)
+
+    (Py_Finalize)
 
     ))

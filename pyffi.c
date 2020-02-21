@@ -1,6 +1,5 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
-#include <patchlevel.h>
 
 typedef PyObject *PyObjectPtr;
 typedef PyObjectPtr PyScm;
