@@ -77,6 +77,8 @@
    PyUnicode->string
    Scm_list_length
    list->PyList
+   list->PyList*
+   SCMOBJ_to_PyObject
 
    )
 

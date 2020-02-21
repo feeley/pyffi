@@ -181,11 +181,23 @@
 (define (PyObject->string o)
   (PyUnicode->string (PyObject_Str o)))
 
-(define (list->PyList l)
-  ((c-lambda (scheme-object) PyObject* "SCMOBJ_to_PyList") l))
-
 (define (Scm_list_length l)
   ((c-lambda (scheme-object) Py_ssize_t "Scm_list_length") l))
 
+(define (SCMOBJ_to_PyObject obj)
+  ((c-lambda (scheme-object) PyObject* "SCMOBJ_to_PyObject") obj))
+
+(define (list->PyList l)
+  ((c-lambda (scheme-object) PyObject* "SCMOBJ_to_PyList") l))
+
+(define (list->PyList* l)
+  (let* ((len (length l))
+         (pylist (PyList_New len)))
+    (let lp ((l* l) (i 0))
+      (if (and (not (null? l*)) (<= i len))
+        (begin
+          (PyList_SetItem pylist i (SCMOBJ_to_PyObject (car l*)))
+          (lp (cdr l*) (+ i 1)))
+        pylist))))
 
 ;;;============================================================================
