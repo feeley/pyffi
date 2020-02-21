@@ -34,19 +34,8 @@
     (define pi (PyObject_GetAttr py/math (PyUnicode_FromString "pi")))
     (pretty-print (PyObject->string pi))
 
-    ;; installed modules
-    (define py/requests (PyImport_ImportModule "requests"))
-    (define py/requests_dict (PyModule_GetDict py/requests))
-    (define r (PyRun_String* "get(\"http://httpbin.org/ip\")" Py_eval_input py/requests_dict locals))
-
-    (define (requests/json r)
-      (PyObject->string
-       (PyObject_CallMethod r "json" "")))
-
-    (pretty-print (requests/json r))
-
     ;; Lists
-    (define pylist (list->PyList '(1 2 "hello" "bonjour")))
+    (define pylist (list->PyList '(1 2 "hello" "bonjour" #t #f)))
     (pretty-print (PyObject->string pylist))
 
     ;; DECREFs
@@ -55,9 +44,6 @@
     (Py_DECREF pyint)
     (Py_DECREF py/math)
     (Py_DECREF pi)
-    (Py_DECREF py/requests)
-    (Py_DECREF py/requests_dict)
-    (Py_DECREF r)
     (Py_DECREF pylist)
 
     (Py_Finalize)
