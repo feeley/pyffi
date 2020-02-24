@@ -84,6 +84,14 @@
               list->PyList*
               SCMOBJ_to_PyObject
 
+              *python-environment*
+              ;; %python-environment%
+              start-python
+              stop-python
+              pyrun
+              pyrun*
+              with-pyenv
+
               ))
 
 ;;;============================================================================

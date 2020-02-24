@@ -16,6 +16,7 @@
    ;; Initialization, Finalization, and Threads
    Py_Initialize
    Py_Finalize
+   Py_SetProgramName
 
    ;; Reference Counting
    Py_INCREF
@@ -72,6 +73,9 @@
    ;; PyUnicode_*
    PyUnicode_FromString
 
+   ;; Reflection
+   PyEval_GetGlobals
+
    ;; Other
    PyObject->string
    PyUnicode->string
@@ -79,6 +83,20 @@
    list->PyList
    list->PyList*
    SCMOBJ_to_PyObject
+
+   *python-environment*
+   *python-environment*-__main__
+   *python-environment*-__main__dict
+   %python-environment%
+   start-python
+   stop-python
+   pyrun
+   pyrun*
+   ;; with-pyenv
+
+   ;; pydis
+   pydis
+   PYOPS
 
    )
 

@@ -39,12 +39,12 @@
     (pretty-print (PyObject->string pylist))
 
     ;; DECREFs
-    (Py_DECREF globals)
-    (Py_DECREF locals)
-    (Py_DECREF pyint)
-    (Py_DECREF py/math)
-    (Py_DECREF pi)
-    (Py_DECREF pylist)
+    ;; (Py_DECREF globals)
+    ;; (Py_DECREF locals)
+    ;; (Py_DECREF pyint)
+    ;; (Py_DECREF py/math)
+    ;; (Py_DECREF pi)
+    ;; (Py_DECREF pylist)
 
     (Py_Finalize)
 

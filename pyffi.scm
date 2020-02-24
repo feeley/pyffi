@@ -16,6 +16,7 @@
                                             ;; macro-absent-obj, etc
 
 (##include "pyffi#.scm")                    ;; correctly map pyffi ops
+(##include "pydis#.scm")
 
 (declare (extended-bindings)) ;; ##fx+ is bound to fixnum addition, etc
 (declare (not safe))          ;; claim code has no type errors
@@ -38,7 +39,7 @@
         (version-to-int (cdr v))
         (error "can't find python3"))))
 
-  (define python3-config-embed (make-parameter #f))
+  (define python3-config-embed (##make-parameter #f))
 
   (define (python3-config-cmd f #!optional (embed (python3-config-embed)))
     (let ((cmd (string-append "python3-config " f)))
@@ -71,6 +72,13 @@
 
 ;;;----------------------------------------------------------------------------
 
+(define-macro (map-macro macro lst)
+  (if (not (null? (car lst)))
+      (let lp ((lst (cdr lst))
+               (acc (cons `(,macro ,@(car lst)) '())))
+        (if (null? lst)
+            `(begin ,@acc)
+            (lp (cdr lst) (cons `(,macro ,@(car lst)) acc))))))
 
 (define-macro (PyAPI id args ret #!optional (f #f))
   (let ((sid (if f f (symbol->string id))))
@@ -78,12 +86,7 @@
        (c-lambda ,args ,ret ,sid))))
 
 (define-macro (with-PyAPI . args)
-  (if (not (null? (car args)))
-    (let lp ((args (cdr args))
-             (acc (cons `(PyAPI ,@(car args)) '())))
-      (if (null? args)
-        `(begin ,@acc)
-        (lp (cdr args) (cons `(PyAPI ,@(car args)) acc))))))
+  `(map-macro PyAPI ,args))
 
 
 ;; Types
@@ -113,6 +116,7 @@
  ;; Initialization, Finalization, and Threads
  (Py_Initialize () void)
  (Py_Finalize   () void)
+ (Py_SetProgramName (wchar_t-string) void)
 
  ;; Reference Counting
  (Py_INCREF  (PyObject*) void)
@@ -171,7 +175,12 @@
  (PyList_AsTuple     (PyObject*) PyObject*) ;; New
 
  ;; PyUnicode_*
- (PyUnicode_FromString (nonnull-char-string) PyObject*))
+ (PyUnicode_FromString (nonnull-char-string) PyObject*)
+
+ ;; Reflection
+ (PyEval_GetGlobals () PyObject*)
+
+ )
 
 
 ;; Utils
@@ -199,5 +208,47 @@
           (PyList_SetItem pylist i (SCMOBJ_to_PyObject (car l*)))
           (lp (cdr l*) (+ i 1)))
         pylist))))
+
+(define-structure *python-environment* __main__ __main__dict)
+
+(define %python-environment% (##make-parameter #f))
+
+(define (start-python)
+  (Py_Initialize)
+  (let* ((__main__ (PyImport_AddModuleObject "__main__"))
+         (__main__dict (PyModule_GetDict __main__))
+         (pyenv (make-*python-environment* __main__ __main__dict)))
+    ;; (%python-environment% pyenv)
+    pyenv))
+
+(define (stop-python #!optional (program-name "pygambit"))
+  (Py_Finalize))
+
+(define (pyrun s #!key (pyenv (%python-environment%)) (locals #f))
+  (if (not locals)
+    (PyRun_String s Py_eval_input
+                  (*python-environment*-__main__dict pyenv)
+                  (*python-environment*-__main__dict pyenv))
+    (PyRun_String s Py_eval_input
+                  (*python-environment*-__main__dict pyenv)
+                  locals)))
+
+(define (pyrun* s #!key (pyenv (%python-environment%)) (locals #f))
+  (if (not locals)
+    (PyRun_String* s Py_eval_input
+                   (*python-environment*-__main__dict pyenv)
+                   (*python-environment*-__main__dict pyenv))
+    (PyRun_String* s Py_eval_input
+                   (*python-environment*-__main__dict pyenv)
+                   locals)))
+
+(define-macro (with-pyenv pyenv . things)
+  `(begin
+     (%python-environment% pyenv)
+     ,@things))
+
+;; f1.__code__.co_code.hex()
+
+(##include "pydis.scm")
 
 ;;;============================================================================
