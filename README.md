@@ -38,3 +38,5 @@ run from whichever directory. The files will be where the module system expects 
 Don't forget to set `LD_PRELOAD` to the proper shared library path or you will not be able to import third-party modules.
 
 The file pyffi.scm will have to be adjusted with the correct paths to the python libraries... it currently works on macOS after a `brew install python3`.
+
+Notification test.
