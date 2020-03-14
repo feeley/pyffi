@@ -55,7 +55,13 @@
 typedef PyObject *PyObjectPtr;
 
 ___SCMOBJ release_PyObjectPtr(void *obj) {
-    Py_DECREF(___CAST(PyObjectPtr, obj));
+#ifdef ___DEBUG_PYTHON_REFCNT
+    printf("Py_DECREF(%p) => %ld\n", obj, Py_REFCNT(obj));
+    fflush(stdout);
+#endif
+
+    if (Py_IsInitialized())
+      Py_DECREF(___CAST(PyObjectPtr, obj));
     return ___FIX(___NO_ERR);
 }
 
@@ -130,7 +136,7 @@ end-of-c-declare
 
 #define ___BEGIN_CFUN_SCMOBJ_to_PYOBJECTPTR" _SUBTYPE "(src,dst,i) \
   if ((___err = SCMOBJ_to_PYOBJECTPTR" _SUBTYPE "(src, &dst, i)) == ___FIX(___NO_ERR)) {
-#define ___END_CFUN_SCMOBJ_to_PYOBJECTPTR" _SUBTYPE "(src,dst,i) Py_DECREF(dst); }
+#define ___END_CFUN_SCMOBJ_to_PYOBJECTPTR" _SUBTYPE "(src,dst,i) }
 
 #define ___BEGIN_CFUN_PYOBJECTPTR" _SUBTYPE "_to_SCMOBJ(src,dst) \
   if ((___err = PYOBJECTPTR" _SUBTYPE "_to_SCMOBJ(src, &dst, 0)) == ___FIX(___NO_ERR)) {
@@ -142,7 +148,7 @@ end-of-c-declare
 
 #define ___BEGIN_SFUN_SCMOBJ_to_PYOBJECTPTR" _SUBTYPE "(src,dst) \
   if ((___err = SCMOBJ_to_PYOBJECTPTR" _SUBTYPE "(src, &dst, 0)) == ___FIX(___NO_ERR)) {
-#define ___END_SFUN_SCMOBJ_to_PYOBJECTPTR" _SUBTYPE "(src,dst) Py_DECREF(dst); }
+#define ___END_SFUN_SCMOBJ_to_PYOBJECTPTR" _SUBTYPE "(src,dst) }
 ")))
 
 ;;;----------------------------------------------------------------------------
@@ -154,6 +160,12 @@ end-of-c-declare
 ___SCMOBJ PYOBJECTPTR_to_SCMOBJ(PyObjectPtr src, ___SCMOBJ *dst, int arg_num) {
 
   ___SCMOBJ tag;
+
+  if ( src == NULL )
+    {
+      *dst = ___VOID;
+      return ___FIX(___NO_ERR);
+    }
 
 #ifdef ___C_TAG_PyObject_2a__2f_None
   if (src==Py_None)
@@ -242,6 +254,11 @@ ___SCMOBJ PYOBJECTPTR_to_SCMOBJ(PyObjectPtr src, ___SCMOBJ *dst, int arg_num) {
   tag = ___C_TAG_PyObject_2a_;
 
   Py_INCREF(src);
+
+#ifdef ___DEBUG_PYTHON_REFCNT
+  printf("PYOBJECTPTR_to_SCMOBJ Py_INCREF(%p) => %ld\n", src, Py_REFCNT(src));
+  fflush(stdout);
+#endif
 
   return ___NONNULLPOINTER_to_SCMOBJ(___PSTATE,
                                      src,
@@ -346,6 +363,11 @@ ___SCMOBJ PYOBJECTPTR" _SUBTYPE "_to_SCMOBJ(PyObjectPtr_" subtype " src, ___SCMO
 
   Py_INCREF(src);
 
+#ifdef ___DEBUG_PYTHON_REFCNT
+  printf(\"PYOBJECTPTR" _SUBTYPE "_to_SCMOBJ Py_INCREF(" _SUBTYPE " %p) => %ld\\n\", src, Py_REFCNT(src));
+  fflush(stdout);
+#endif
+
   return ___NONNULLPOINTER_to_SCMOBJ(___PSTATE,
                                      src,
                                      " tag ",
@@ -384,6 +406,11 @@ ___SCMOBJ SCMOBJ_to_PYOBJECTPTR" _SUBTYPE "(___SCMOBJ src, void **dst, int arg_n
 (define-python-subtype-converters "module"    "PyModule_CheckExact(src)")
 
 ;;;----------------------------------------------------------------------------
+
+;; Use for debugging
+(define _Py_REFCNT
+  (c-lambda (PyObject*) ssize_t
+    "___return(Py_REFCNT(___arg1));"))
 
 ;; Interface to Python API.
 
@@ -495,38 +522,5 @@ ___SCMOBJ SCMOBJ_to_PYOBJECTPTR" _SUBTYPE "(___SCMOBJ src, void **dst, int arg_n
    (c-lambda () _PyObject*/set "___return(NULL);")
    (c-lambda () _PyObject*/tuple "___return(NULL);")
    (c-lambda () _PyObject*/module "___return(NULL);")))
-
-;;;----------------------------------------------------------------------------
-
-;; Tests.
-
-(Py_Initialize)
-
-(define __main__ (PyImport_AddModuleObject (string->PyObject*/str "__main__")))
-(define __main__dict (PyModule_GetDict __main__))
-
-(define (pyrun str) (PyRun_String str Py_eval_input __main__dict __main__dict))
-
-;; check conversion of various subtypes
-(pp (pyrun "__builtins__"))
-(pp (pyrun "None"))
-(pp (pyrun "1>2"))
-(pp (pyrun "1<2"))
-(pp (pyrun "1+2*3"))
-(pp (pyrun "3.1415"))
-(pp (pyrun "1+2j"))
-(pp (pyrun "b'abc'"))
-;;(pp (pyrun "bytearray(b'abc')")) ;; TODO: debug accessing builtins = segfault
-(pp (pyrun "'abc'"))
-(pp (pyrun "[1,2,3]"))
-(pp (pyrun "{}"))
-;;(pp (pyrun "frozenset()"))
-;;(pp (pyrun "set()"))
-(pp (pyrun "(1,2,3)"))
-
-;; check roundtrip of strings
-(pp (PyObject*/str->string (string->PyObject*/str "hello")))
-
-(pp (PyObject*/str->string (pyrun "'ab'+'cd'")))
 
 ;;;----------------------------------------------------------------------------
