@@ -1,6 +1,6 @@
 
 ;; Legacy load of pyintf
-(load "pyintf")
+(import (github.com/feeley pyffi))
 
 ;; Tests.
 (Py_Initialize)
