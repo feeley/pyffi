@@ -184,7 +184,7 @@ ___SCMOBJ PYOBJECTPTR_to_SCMOBJ(PyObjectPtr src, ___SCMOBJ *dst, int arg_num) {
 
   ___SCMOBJ tag;
 
-  if ( src == NULL )
+  if (src == NULL)
     {
       *dst = ___VOID;
       return ___FIX(___NO_ERR);
@@ -381,7 +381,7 @@ end-of-c-declare
 
 ___SCMOBJ PYOBJECTPTR" _SUBTYPE "_to_SCMOBJ(PyObjectPtr_" subtype " src, ___SCMOBJ *dst, int arg_num) {
 
-  if (!(" check "))
+  if (src == NULL || !(" check "))
     return ___FIX(___CTOS_NONNULLPOINTER_ERR+arg_num);
 
   Py_INCREF(src);
@@ -449,6 +449,14 @@ ___SCMOBJ SCMOBJ_to_PYOBJECTPTR" _SUBTYPE "(___SCMOBJ src, void **dst, int arg_n
   (c-lambda () void
     "Py_Finalize"))
 
+(define PyBool_FromLong
+  (c-lambda (PyObject*/int) PyObject*/bool
+    "PyBool_FromLong"))
+
+(define PyLong_FromUnicodeObject
+  (c-lambda (PyObject*/str int) PyObject*/int
+    "PyLong_FromUnicodeObject"))
+
 (define PyUnicode_FromString
   (c-lambda (UTF-8-string) PyObject*/str
     "PyUnicode_FromString"))
@@ -475,58 +483,148 @@ ___SCMOBJ SCMOBJ_to_PYOBJECTPTR" _SUBTYPE "(___SCMOBJ src, void **dst, int arg_n
 
 ;; TODO: check for errors and implement conversion of other subtypes...
 
-(define PyObject*/str->string
-  (c-lambda (PyObject*/str) scheme-object
-    "
-     ___SCMOBJ obj = ___VOID;
+(define PyObject*/None->void
+  (c-lambda (PyObject*/None) scheme-object "
 
-     if (!PyUnicode_READY(___arg1)) { /* convert to canonical representation */
+___return(___VOID);
 
-       Py_ssize_t len = PyUnicode_GET_LENGTH(___arg1);
+"))
 
-       obj = ___alloc_scmobj(___PSTATE, ___sSTRING, len << ___LCS);
+(define void->PyObject*/None
+  (c-lambda (scheme-object) PyObject*/None "
 
-       if (!___FIXNUMP(obj))
-         switch (PyUnicode_KIND(___arg1)) {
-           case PyUnicode_1BYTE_KIND:
-             {
-               Py_UCS1 *data = PyUnicode_1BYTE_DATA(___arg1);
-               while (len-- > 0)
-                 ___STRINGSET(obj, ___FIX(len), ___CHR(data[len]));
-               break;
-             }
-           case PyUnicode_2BYTE_KIND:
-             {
-               Py_UCS2 *data = PyUnicode_2BYTE_DATA(___arg1);
-               while (len-- > 0)
-                 ___STRINGSET(obj, ___FIX(len), ___CHR(data[len]));
-               break;
-             }
-           case PyUnicode_4BYTE_KIND:
-             {
-               Py_UCS4 *data = PyUnicode_4BYTE_DATA(___arg1);
-               while (len-- > 0)
-                 ___STRINGSET(obj, ___FIX(len), ___CHR(data[len]));
-               break;
-             }
-         }
-     }
+___return((___arg1 == ___VOID) ? Py_None : NULL);
 
-     ___return(obj);
-    "))
+"))
+
+(define PyObject*/bool->boolean
+  (c-lambda (PyObject*/bool) scheme-object "
+
+___return(___BOOLEAN(___arg1 != Py_False));
+
+"))
+
+(define boolean->PyObject*/bool
+  (c-lambda (scheme-object) PyObject*/bool "
+
+___return(___EQP(___arg1,___FAL)
+          ? Py_False
+          : ___EQP(___arg1,___TRU)
+            ? Py_True
+            : NULL);
+
+"))
+
+(define (PyObject*/int->exact-integer src)
+  (let ((dst
+         ((c-lambda (PyObject*/int) scheme-object "
+
+PyObject* src = ___arg1;
+___SCMOBJ dst = ___VOID;
+
+int overflow;
+___LONGLONG val = PyLong_AsLongLongAndOverflow(src, &overflow);
+
+if (!overflow)
+  {
+    if (___EXT(___LONGLONG_to_SCMOBJ)(___PSTATE,
+                                      val,
+                                      &dst,
+                                      ___RETURN_POS)
+        != ___FIX(___NO_ERR))
+      dst = ___VOID;
+  }
+
+___return(___EXT(___release_scmobj) (dst));
+
+")
+          src)))
+    (if (eq? dst (void))
+        (error "PyObject*/int->exact-integer conversion error")
+        dst)))
+
+(define exact-integer->PyObject*/int
+  (c-lambda (scheme-object) PyObject*/int "
+
+___SCMOBJ src = ___arg1;
+PyObject* dst;
+
+if (___FIXNUMP(src))
+  {
+    dst = PyLong_FromLongLong(___INT(src));
+    Py_DECREF(dst);
+  }
+else
+  dst = NULL;
+
+___return(dst);
+
+"))
+
+(define (PyObject*/str->string src)
+  (let ((dst
+         ((c-lambda (PyObject*/str) scheme-object "
+
+PyObject* src = ___arg1;
+___SCMOBJ dst = ___VOID;
+
+if (!PyUnicode_READY(src)) { /* convert to canonical representation */
+
+  Py_ssize_t len = PyUnicode_GET_LENGTH(src);
+
+  dst = ___alloc_scmobj(___PSTATE, ___sSTRING, len << ___LCS);
+
+  if (___FIXNUMP(dst))
+    dst = ___VOID;
+  else
+    switch (PyUnicode_KIND(src)) {
+      case PyUnicode_1BYTE_KIND:
+        {
+          Py_UCS1 *data = PyUnicode_1BYTE_DATA(src);
+          while (len-- > 0)
+            ___STRINGSET(dst, ___FIX(len), ___CHR(data[len]));
+          break;
+        }
+      case PyUnicode_2BYTE_KIND:
+        {
+          Py_UCS2 *data = PyUnicode_2BYTE_DATA(src);
+          while (len-- > 0)
+            ___STRINGSET(dst, ___FIX(len), ___CHR(data[len]));
+          break;
+        }
+      case PyUnicode_4BYTE_KIND:
+        {
+          Py_UCS4 *data = PyUnicode_4BYTE_DATA(src);
+          while (len-- > 0)
+            ___STRINGSET(dst, ___FIX(len), ___CHR(data[len]));
+          break;
+        }
+    }
+}
+
+___return(___EXT(___release_scmobj) (dst));
+
+")
+          src)))
+    (if (eq? dst (void))
+        (error "PyObject*/str->string conversion error")
+        dst)))
 
 (define string->PyObject*/str
-  (c-lambda (scheme-object) PyObject*/str
-    "
-     PyObject* obj =
-       PyUnicode_FromKindAndData(___CS_SELECT(PyUnicode_1BYTE_KIND,
-                                              PyUnicode_2BYTE_KIND,
-                                              PyUnicode_4BYTE_KIND),
-                                 ___CAST(void*,
-                                         ___BODY_AS(___arg1,___tSUBTYPED)),
-                                 ___INT(___STRINGLENGTH(___arg1)));
-     ___return(obj);
-    "))
+  (c-lambda (scheme-object) PyObject*/str "
+
+___SCMOBJ src = ___arg1;
+PyObject* dst =
+  PyUnicode_FromKindAndData(___CS_SELECT(PyUnicode_1BYTE_KIND,
+                                         PyUnicode_2BYTE_KIND,
+                                         PyUnicode_4BYTE_KIND),
+                            ___CAST(void*,
+                                    ___BODY_AS(src,___tSUBTYPED)),
+                            ___INT(___STRINGLENGTH(src)));
+
+___return(dst);
+
+"))
 
 ;;;----------------------------------------------------------------------------
 

@@ -83,6 +83,9 @@
               list->PyList
               list->PyList*
               SCMOBJ_to_PyObject
+              PyBool_FromLong
+              PyLong_FromUnicodeObject
+              PyUnicode_FromString
 
               *python-environment*
               ;; %python-environment%

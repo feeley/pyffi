@@ -16,9 +16,6 @@
    Py_Initialize
    Py_Finalize
 
-   ;; PyUnicode_*
-   PyUnicode_FromString
-
    ;; PyRun_*
    PyRun_SimpleString
    PyRun_String
@@ -29,7 +26,22 @@
    ;; PyModule_*
    PyModule_GetDict
 
+   ;; PyBool_*
+   PyBool_FromLong
+
+   ;; PyLong_*
+   PyLong_FromUnicodeObject
+
+   ;; PyUnicode_*
+   PyUnicode_FromString
+
    ;; Converters
+   PyObject*/None->void
+   void->PyObject*/None
+   PyObject*/bool->boolean
+   boolean->PyObject*/bool
+   PyObject*/int->exact-integer
+   exact-integer->PyObject*/int
    PyObject*/str->string
    string->PyObject*/str
 
