@@ -23,6 +23,7 @@
 (define (check-roundtrip py2scm scm2py vals)
   (for-each
    (lambda (x)
+     ;;(##gc)
      (let* ((py (scm2py x))
             (scm (py2scm py)))
        (if (not (equal? scm x))
@@ -54,10 +55,14 @@
                          "hello!\n"))
   )
 
+(##gc)
+
+(println "---------------------------------------------")
+
 (checks)
 
 #;
-(let loop ((n 100000000))
+(let loop ((n 1000000))
   (if (> n 0)
       (begin
         (checks)
