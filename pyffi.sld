@@ -22,9 +22,13 @@
 
    ;; PyImport_*
    PyImport_AddModuleObject
+   PyImport_ImportModule
 
    ;; PyModule_*
    PyModule_GetDict
+
+   ;; PyDict_*
+   PyDict_New
 
    ;; PyBool_*
    PyBool_FromLong
@@ -34,6 +38,9 @@
 
    ;; PyUnicode_*
    PyUnicode_FromString
+
+   ;; PyObject_*
+   PyObject_CallMethod
 
    ;; Converters
    PyObject*/None->void
