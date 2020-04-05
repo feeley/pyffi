@@ -523,14 +523,25 @@ ___SCMOBJ SCMOBJ_to_PYOBJECTPTR" _SUBTYPE "(___SCMOBJ src, void **dst, int arg_n
   (c-lambda (UTF-8-string int PyObject*/dict PyObject*/dict) PyObject*
     "PyRun_String"))
 
-
 (define PyImport_AddModuleObject
   (c-lambda (PyObject*/str) PyObject*/module
     "PyImport_AddModuleObject"))
 
+(define PyImport_ImportModule
+  (c-lambda (UTF-8-string) PyObject*/module
+            "PyImport_ImportModule"))
+
 (define PyModule_GetDict
   (c-lambda (PyObject*/module) PyObject*/dict
     "PyModule_GetDict"))
+
+(define PyDict_New
+  (c-lambda () PyObject*/dict
+            "PyDict_New"))
+
+(define PyObject_CallMethod
+  (c-lambda (PyObject* UTF-8-string UTF-8-string) PyObject*
+            "PyObject_CallMethod"))
 
 ;;;----------------------------------------------------------------------------
 
