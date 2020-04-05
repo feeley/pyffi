@@ -837,12 +837,12 @@ if (!___VECTORP(src)) {
       ((PyObject*/bool)  (PyObject*/bool->boolean src))
       ((PyObject*/int)   (PyObject*/int->exact-integer src))
       ((PyObject*/str)   (PyObject*/str->string src))
-      ((PyObject*/tuple) (vector-conv src))
-      ((PyObject*/list)  (list-conv src))
+      ((PyObject*/tuple) (list-conv src))
+      ((PyObject*/list)  (vector-conv src))
       (else              (error "can't convert" src))))
 
   (define (vector-conv src)
-    (let ((vect (PyObject*/tuple->vector src)))
+    (let ((vect (PyObject*/list->vector src)))
       (let loop ((i (fx- (vector-length vect) 1)))
         (if (fx< i 0)
             vect
@@ -851,7 +851,7 @@ if (!___VECTORP(src)) {
               (loop (fx- i 1)))))))
 
   (define (list-conv src)
-    (let* ((vect (PyObject*/list->vector src))
+    (let* ((vect (PyObject*/tuple->vector src))
            (len (vector-length vect)))
       (let loop ((i (fx- len 1)) (lst '()))
         (if (fx< i 0)
@@ -880,7 +880,7 @@ if (!___VECTORP(src)) {
            (vect (make-vector len)))
       (let loop ((i (fx- len 1)))
         (if (fx< i 0)
-            (vector->PyObject*/tuple vect)
+            (vector->PyObject*/list vect)
             (begin
               (vector-set! vect i (conv (vector-ref src i)))
               (loop (fx- i 1)))))))
@@ -892,7 +892,7 @@ if (!___VECTORP(src)) {
           (let ((vect (make-vector len)))
             (let loop2 ((probe src) (i 0))
               (if (not (and (fx< i len) (pair? probe)))
-                  (vector->PyObject*/list vect)
+                  (vector->PyObject*/tuple vect)
                   (begin
                     (vector-set! vect i (conv (car probe)))
                     (loop2 (cdr probe) (fx+ i 1)))))))))
