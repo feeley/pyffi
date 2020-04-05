@@ -51,6 +51,12 @@
    exact-integer->PyObject*/int
    PyObject*/str->string
    string->PyObject*/str
+   PyObject*/tuple->vector
+   vector->PyObject*/tuple
+   PyObject*/list->vector
+   vector->PyObject*/list
+   PyObject*->object
+   object->PyObject*
 
    )
 

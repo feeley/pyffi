@@ -77,15 +77,44 @@
 
 typedef PyObject *PyObjectPtr;
 
-___SCMOBJ release_PyObjectPtr(void *obj) {
-#ifdef ___DEBUG_PYTHON_REFCNT
-    printf("Py_DECREF(%p) => %ld\n", obj, Py_REFCNT(obj));
-    fflush(stdout);
+#define DEBUG_PYTHON_REFCNT_not
+
+#ifdef DEBUG_PYTHON_REFCNT
+
+#define PYOBJECTPTR_INCREF(obj, where) \
+do { \
+  Py_INCREF(obj); \
+  printf(where " REFCNT(%p)=%ld after INCREF\n", obj, Py_REFCNT(obj)); \
+  fflush(stdout); \
+} while (0)
+
+#define PYOBJECTPTR_DECREF(obj, where) \
+do { \
+  printf(where " REFCNT(%p)=%ld before DECREF\n", obj, Py_REFCNT(obj)); \
+  fflush(stdout); \
+  Py_DECREF(obj); \
+} while (0)
+
+#define PYOBJECTPTR_REFCNT_SHOW(obj, where) \
+do { \
+  printf(where " REFCNT(%p)=%ld\n", obj, Py_REFCNT(obj)); \
+  fflush(stdout); \
+} while (0)
+
+#else
+
+#define PYOBJECTPTR_INCREF(obj, where) Py_INCREF(obj)
+#define PYOBJECTPTR_DECREF(obj, where) Py_DECREF(obj)
+#define PYOBJECTPTR_REFCNT_SHOW(obj, where)
+
 #endif
 
-    if (Py_IsInitialized())
-      Py_DECREF(___CAST(PyObjectPtr, obj));
-    return ___FIX(___NO_ERR);
+___SCMOBJ release_PyObjectPtr(void *obj) {
+
+  if (Py_IsInitialized()) // Avoid mem management after Python is shutdown
+    PYOBJECTPTR_DECREF(___CAST(PyObjectPtr, obj), "release_PyObjectPtr");
+
+  return ___FIX(___NO_ERR);
 }
 
 end-of-c-declare
@@ -97,43 +126,58 @@ end-of-c-declare
 
 (c-define-type PyObject "PyObject")
 
-(c-define-type _PyObject* (nonnull-pointer
-                          PyObject
-                          (PyObject*
-                           PyObject*/None
-                           PyObject*/bool
-                           PyObject*/int
-                           PyObject*/float
-                           PyObject*/complex
-                           PyObject*/bytes
-                           PyObject*/bytearray
-                           PyObject*/str
-                           PyObject*/list
-                           PyObject*/dict
-                           PyObject*/frozenset
-                           PyObject*/set
-                           PyObject*/tuple
-                           PyObject*/module)))
+(c-define-type _PyObject*
+               (nonnull-pointer
+                PyObject
+                (PyObject*
+                 PyObject*/None
+                 PyObject*/bool
+                 PyObject*/int
+                 PyObject*/float
+                 PyObject*/complex
+                 PyObject*/bytes
+                 PyObject*/bytearray
+                 PyObject*/str
+                 PyObject*/list
+                 PyObject*/dict
+                 PyObject*/frozenset
+                 PyObject*/set
+                 PyObject*/tuple
+                 PyObject*/module
+                 )))
 
-(c-define-type PyObject* "void*"
-                         "PYOBJECTPTR_to_SCMOBJ"
-                         "SCMOBJ_to_PYOBJECTPTR"
-                         #t)
+(c-define-type PyObject*
+               "void*"
+               "PYOBJECTPTR_to_SCMOBJ"
+               "SCMOBJ_to_PYOBJECTPTR"
+               #t)
+
+(c-define-type PyObject*!own
+               "void*"
+               "PYOBJECTPTR_OWN_to_SCMOBJ"
+               "SCMOBJ_to_PYOBJECTPTR_OWN"
+               #t)
 
 ;;;----------------------------------------------------------------------------
 
 ;; Define PyObject* subtypes.
 
 (define-macro (define-python-subtype-type subtype)
-  (define name (string->symbol (string-append "PyObject*/" subtype)))
-  (define _name (string->symbol (string-append "_PyObject*/" subtype)))
   (define type (string-append "PyObjectPtr_" subtype))
-  (define to-scmobj (string-append (string-upcase type) "_to_SCMOBJ"))
-  (define from-scmobj (string-append "SCMOBJ_to_" (string-upcase type)))
+  (define _name (string->symbol (string-append "_PyObject*/" subtype)))
+  (define name (string->symbol (string-append "PyObject*/" subtype)))
+  (define name-own (string->symbol (string-append "PyObject*!own/" subtype)))
+  (define TYPE (string-append "PYOBJECTPTR_" (string-upcase subtype)))
+  (define TYPE-OWN (string-append "PYOBJECTPTR_OWN_" (string-upcase subtype)))
+  (define to-scmobj (string-append TYPE "_to_SCMOBJ"))
+  (define from-scmobj (string-append "SCMOBJ_to_" TYPE))
+  (define to-scmobj-own (string-append TYPE-OWN "_to_SCMOBJ"))
+  (define from-scmobj-own (string-append "SCMOBJ_to_" TYPE-OWN))
   `(begin
      (c-declare ,(string-append "typedef PyObjectPtr " type ";"))
      (c-define-type ,_name (nonnull-pointer PyObject ,name))
-     (c-define-type ,name "void*" ,to-scmobj ,from-scmobj #t)))
+     (c-define-type ,name "void*" ,to-scmobj ,from-scmobj #t)
+     (c-define-type ,name-own "void*" ,to-scmobj-own ,from-scmobj-own #t)))
 
 (define-python-subtype-type "None")
 (define-python-subtype-type "bool")
@@ -154,24 +198,24 @@ end-of-c-declare
 
 ;; Generator of converter macros.
 
-(define-macro (define-python-converter-macros _SUBTYPE)
+(define-macro (define-converter-macros _SUBTYPE _OWN release)
   `(c-declare ,(string-append "
 
-#define ___BEGIN_CFUN_SCMOBJ_to_PYOBJECTPTR" _SUBTYPE "(src,dst,i) \
+#define ___BEGIN_CFUN_SCMOBJ_to_PYOBJECTPTR" _OWN _SUBTYPE "(src,dst,i) \
   if ((___err = SCMOBJ_to_PYOBJECTPTR" _SUBTYPE "(src, &dst, i)) == ___FIX(___NO_ERR)) {
-#define ___END_CFUN_SCMOBJ_to_PYOBJECTPTR" _SUBTYPE "(src,dst,i) }
+#define ___END_CFUN_SCMOBJ_to_PYOBJECTPTR" _OWN _SUBTYPE "(src,dst,i) " release "}
 
-#define ___BEGIN_CFUN_PYOBJECTPTR" _SUBTYPE "_to_SCMOBJ(src,dst) \
-  if ((___err = PYOBJECTPTR" _SUBTYPE "_to_SCMOBJ(src, &dst, 0)) == ___FIX(___NO_ERR)) {
-#define ___END_CFUN_PYOBJECTPTR" _SUBTYPE "_to_SCMOBJ(src,dst) ___EXT(___release_scmobj)(dst); }
+#define ___BEGIN_CFUN_PYOBJECTPTR" _OWN _SUBTYPE "_to_SCMOBJ(src,dst) \
+  if ((___err = PYOBJECTPTR" _OWN _SUBTYPE "_to_SCMOBJ(src, &dst, 0)) == ___FIX(___NO_ERR)) {
+#define ___END_CFUN_PYOBJECTPTR" _OWN _SUBTYPE "_to_SCMOBJ(src,dst) ___EXT(___release_scmobj)(dst); }
 
-#define ___BEGIN_SFUN_PYOBJECTPTR" _SUBTYPE "_to_SCMOBJ(src,dst,i) \
-  if ((___err = PYOBJECTPTR" _SUBTYPE "_to_SCMOBJ(src, &dst, i)) == ___FIX(___NO_ERR)) {
-#define ___END_SFUN_PYOBJECTPTR" _SUBTYPE "_to_SCMOBJ(src,dst,i) ___EXT(___release_scmobj)(dst); }
+#define ___BEGIN_SFUN_PYOBJECTPTR" _OWN _SUBTYPE "_to_SCMOBJ(src,dst,i) \
+  if ((___err = PYOBJECTPTR" _OWN _SUBTYPE "_to_SCMOBJ(src, &dst, i)) == ___FIX(___NO_ERR)) {
+#define ___END_SFUN_PYOBJECTPTR" _OWN _SUBTYPE "_to_SCMOBJ(src,dst,i) ___EXT(___release_scmobj)(dst); }
 
-#define ___BEGIN_SFUN_SCMOBJ_to_PYOBJECTPTR" _SUBTYPE "(src,dst) \
+#define ___BEGIN_SFUN_SCMOBJ_to_PYOBJECTPTR" _OWN _SUBTYPE "(src,dst) \
   if ((___err = SCMOBJ_to_PYOBJECTPTR" _SUBTYPE "(src, &dst, 0)) == ___FIX(___NO_ERR)) {
-#define ___END_SFUN_SCMOBJ_to_PYOBJECTPTR" _SUBTYPE "(src,dst) }
+#define ___END_SFUN_SCMOBJ_to_PYOBJECTPTR" _OWN _SUBTYPE "(src,dst) " release "}
 ")))
 
 ;;;----------------------------------------------------------------------------
@@ -185,19 +229,16 @@ ___SCMOBJ PYOBJECTPTR_to_SCMOBJ(PyObjectPtr src, ___SCMOBJ *dst, int arg_num) {
   ___SCMOBJ tag;
 
   if (src == NULL)
-    {
-      *dst = ___VOID;
-      return ___FIX(___NO_ERR);
-    }
+    return ___FIX(___CTOS_NONNULLPOINTER_ERR+arg_num);
 
 #ifdef ___C_TAG_PyObject_2a__2f_None
-  if (src==Py_None)
+  if (src == Py_None)
     tag = ___C_TAG_PyObject_2a__2f_None;
   else
 #endif
 
 #ifdef ___C_TAG_PyObject_2a__2f_bool
-  if (src==Py_False || src==Py_True)
+  if (src == Py_False || src == Py_True)
     tag = ___C_TAG_PyObject_2a__2f_bool;
   else
 #endif
@@ -276,12 +317,7 @@ ___SCMOBJ PYOBJECTPTR_to_SCMOBJ(PyObjectPtr src, ___SCMOBJ *dst, int arg_num) {
 
   tag = ___C_TAG_PyObject_2a_;
 
-  Py_INCREF(src);
-
-#ifdef ___DEBUG_PYTHON_REFCNT
-  printf("PYOBJECTPTR_to_SCMOBJ Py_INCREF(%p) => %ld\n", src, Py_REFCNT(src));
-  fflush(stdout);
-#endif
+  PYOBJECTPTR_REFCNT_SHOW(src, "PYOBJECTPTR_to_SCMOBJ");
 
   return ___NONNULLPOINTER_to_SCMOBJ(___PSTATE,
                                      src,
@@ -289,6 +325,13 @@ ___SCMOBJ PYOBJECTPTR_to_SCMOBJ(PyObjectPtr src, ___SCMOBJ *dst, int arg_num) {
                                      release_PyObjectPtr,
                                      dst,
                                      arg_num);
+}
+
+___SCMOBJ PYOBJECTPTR_OWN_to_SCMOBJ(PyObjectPtr src, ___SCMOBJ *dst, int arg_num) {
+  if (src == NULL)
+    return ___FIX(___CTOS_NONNULLPOINTER_ERR+arg_num);
+  PYOBJECTPTR_INCREF(src, "PYOBJECTPTR_OWN_to_SCMOBJ");
+  return PYOBJECTPTR_to_SCMOBJ(src, dst, arg_num);
 }
 
 ___SCMOBJ SCMOBJ_to_PYOBJECTPTR(___SCMOBJ src, void **dst, int arg_num) {
@@ -364,13 +407,14 @@ ___SCMOBJ SCMOBJ_to_PYOBJECTPTR(___SCMOBJ src, void **dst, int arg_num) {
 end-of-c-declare
 )
 
-(define-python-converter-macros "")
+(define-converter-macros "" "" "")
+(define-converter-macros "" "_OWN" "___EXT(___release_foreign) (src); ")
 
 ;;;----------------------------------------------------------------------------
 
 ;; Converters for Python* subtypes.
 
-(define-macro (define-python-subtype-converters subtype check)
+(define-macro (define-subtype-converters subtype check)
   (define _SUBTYPE (string-append "_" (string-upcase subtype)))
   (define tag (string-append "___C_TAG_PyObject_2a__2f_" subtype))
   `(begin
@@ -384,12 +428,22 @@ ___SCMOBJ PYOBJECTPTR" _SUBTYPE "_to_SCMOBJ(PyObjectPtr_" subtype " src, ___SCMO
   if (src == NULL || !(" check "))
     return ___FIX(___CTOS_NONNULLPOINTER_ERR+arg_num);
 
-  Py_INCREF(src);
+  PYOBJECTPTR_REFCNT_SHOW(src, \"PYOBJECTPTR" _SUBTYPE "_to_SCMOBJ\");
 
-#ifdef ___DEBUG_PYTHON_REFCNT
-  printf(\"PYOBJECTPTR" _SUBTYPE "_to_SCMOBJ Py_INCREF(" _SUBTYPE " %p) => %ld\\n\", src, Py_REFCNT(src));
-  fflush(stdout);
-#endif
+  return ___NONNULLPOINTER_to_SCMOBJ(___PSTATE,
+                                     src,
+                                     " tag ",
+                                     release_PyObjectPtr,
+                                     dst,
+                                     arg_num);
+}
+
+___SCMOBJ PYOBJECTPTR_OWN" _SUBTYPE "_to_SCMOBJ(PyObjectPtr_" subtype " src, ___SCMOBJ *dst, int arg_num) {
+
+  if (src == NULL || !(" check "))
+    return ___FIX(___CTOS_NONNULLPOINTER_ERR+arg_num);
+
+  PYOBJECTPTR_INCREF(src, \"PYOBJECTPTR_OWN" _SUBTYPE "_to_SCMOBJ\");
 
   return ___NONNULLPOINTER_to_SCMOBJ(___PSTATE,
                                      src,
@@ -411,22 +465,23 @@ ___SCMOBJ SCMOBJ_to_PYOBJECTPTR" _SUBTYPE "(___SCMOBJ src, void **dst, int arg_n
 #endif
 
 "))
-     (define-python-converter-macros ,_SUBTYPE)))
+     (define-converter-macros ,_SUBTYPE "" "")
+     (define-converter-macros ,_SUBTYPE "_OWN" "___EXT(___release_foreign) (src); ")))
 
-(define-python-subtype-converters "None"      "src==Py_None")
-(define-python-subtype-converters "bool"      "src==Py_False || src==Py_True")
-(define-python-subtype-converters "int"       "PyLong_CheckExact(src)")
-(define-python-subtype-converters "float"     "PyFloat_CheckExact(src)")
-(define-python-subtype-converters "complex"   "PyComplex_CheckExact(src)")
-(define-python-subtype-converters "bytes"     "PyBytes_CheckExact(src)")
-(define-python-subtype-converters "bytearray" "PyByteArray_CheckExact(src)")
-(define-python-subtype-converters "str"       "PyUnicode_CheckExact(src)")
-(define-python-subtype-converters "list"      "PyList_CheckExact(src)")
-(define-python-subtype-converters "dict"      "PyDict_CheckExact(src)")
-(define-python-subtype-converters "frozenset" "PyFrozenSet_CheckExact(src)")
-(define-python-subtype-converters "set"       "PyAnySet_CheckExact(src) && !PyFrozenSet_CheckExact(src)")
-(define-python-subtype-converters "tuple"     "PyTuple_CheckExact(src)")
-(define-python-subtype-converters "module"    "PyModule_CheckExact(src)")
+(define-subtype-converters "None"      "src == Py_None")
+(define-subtype-converters "bool"      "src == Py_False || src == Py_True")
+(define-subtype-converters "int"       "PyLong_CheckExact(src)")
+(define-subtype-converters "float"     "PyFloat_CheckExact(src)")
+(define-subtype-converters "complex"   "PyComplex_CheckExact(src)")
+(define-subtype-converters "bytes"     "PyBytes_CheckExact(src)")
+(define-subtype-converters "bytearray" "PyByteArray_CheckExact(src)")
+(define-subtype-converters "str"       "PyUnicode_CheckExact(src)")
+(define-subtype-converters "list"      "PyList_CheckExact(src)")
+(define-subtype-converters "dict"      "PyDict_CheckExact(src)")
+(define-subtype-converters "frozenset" "PyFrozenSet_CheckExact(src)")
+(define-subtype-converters "set"       "PyAnySet_CheckExact(src) && !PyFrozenSet_CheckExact(src)")
+(define-subtype-converters "tuple"     "PyTuple_CheckExact(src)")
+(define-subtype-converters "module"    "PyModule_CheckExact(src)")
 
 ;;;----------------------------------------------------------------------------
 
@@ -450,7 +505,7 @@ ___SCMOBJ SCMOBJ_to_PYOBJECTPTR" _SUBTYPE "(___SCMOBJ src, void **dst, int arg_n
     "Py_Finalize"))
 
 (define PyBool_FromLong
-  (c-lambda (PyObject*/int) PyObject*/bool
+  (c-lambda (long) PyObject*/bool
     "PyBool_FromLong"))
 
 (define PyLong_FromUnicodeObject
@@ -504,7 +559,15 @@ ___return(___VOID);
 (define void->PyObject*/None
   (c-lambda (scheme-object) PyObject*/None "
 
-___return((___arg1 == ___VOID) ? Py_None : NULL);
+___SCMOBJ src = ___arg1;
+PyObjectPtr dst = NULL;
+
+if (___EQP(src, ___VOID)) {
+  dst = Py_None;
+  PYOBJECTPTR_INCREF(dst, \"void->PyObject*/None\");
+}
+
+___return(dst);
 
 "))
 
@@ -518,11 +581,15 @@ ___return(___BOOLEAN(___arg1 != Py_False));
 (define boolean->PyObject*/bool
   (c-lambda (scheme-object) PyObject*/bool "
 
-___return(___EQP(___arg1,___FAL)
-          ? Py_False
-          : ___EQP(___arg1,___TRU)
-            ? Py_True
-            : NULL);
+___SCMOBJ src = ___arg1;
+PyObjectPtr dst = NULL;
+
+if (___BOOLEANP(src)) {
+  dst = ___FALSEP(src) ? Py_False : Py_True;
+  PYOBJECTPTR_INCREF(dst, \"boolean->PyObject*/bool\");
+}
+
+___return(dst);
 
 "))
 
@@ -530,7 +597,7 @@ ___return(___EQP(___arg1,___FAL)
   (let ((dst
          ((c-lambda (PyObject*/int) scheme-object "
 
-PyObject* src = ___arg1;
+PyObjectPtr src = ___arg1;
 ___SCMOBJ dst = ___VOID;
 
 int overflow;
@@ -558,15 +625,12 @@ ___return(___EXT(___release_scmobj) (dst));
   (c-lambda (scheme-object) PyObject*/int "
 
 ___SCMOBJ src = ___arg1;
-PyObject* dst;
+PyObjectPtr dst = NULL;
 
-if (___FIXNUMP(src))
-  {
-    dst = PyLong_FromLongLong(___INT(src));
-    Py_DECREF(dst);
-  }
-else
-  dst = NULL;
+if (___FIXNUMP(src)) {
+  dst = PyLong_FromLongLong(___INT(src));
+  PYOBJECTPTR_REFCNT_SHOW(dst, \"exact-integer->PyObject*/int\");
+}
 
 ___return(dst);
 
@@ -576,14 +640,14 @@ ___return(dst);
   (let ((dst
          ((c-lambda (PyObject*/str) scheme-object "
 
-PyObject* src = ___arg1;
+PyObjectPtr src = ___arg1;
 ___SCMOBJ dst = ___VOID;
 
 if (!PyUnicode_READY(src)) { /* convert to canonical representation */
 
   Py_ssize_t len = PyUnicode_GET_LENGTH(src);
 
-  dst = ___alloc_scmobj(___PSTATE, ___sSTRING, len << ___LCS);
+  dst = ___EXT(___alloc_scmobj) (___PSTATE, ___sSTRING, len << ___LCS);
 
   if (___FIXNUMP(dst))
     dst = ___VOID;
@@ -625,17 +689,226 @@ ___return(___EXT(___release_scmobj) (dst));
   (c-lambda (scheme-object) PyObject*/str "
 
 ___SCMOBJ src = ___arg1;
-PyObject* dst =
-  PyUnicode_FromKindAndData(___CS_SELECT(PyUnicode_1BYTE_KIND,
-                                         PyUnicode_2BYTE_KIND,
-                                         PyUnicode_4BYTE_KIND),
-                            ___CAST(void*,
-                                    ___BODY_AS(src,___tSUBTYPED)),
-                            ___INT(___STRINGLENGTH(src)));
 
-___return(dst);
+if (!___STRINGP(src)) {
+  ___return(NULL);
+} else {
+  PyObjectPtr dst = PyUnicode_FromKindAndData(___CS_SELECT(
+                                                PyUnicode_1BYTE_KIND,
+                                                PyUnicode_2BYTE_KIND,
+                                                PyUnicode_4BYTE_KIND),
+                                              ___CAST(void*,
+                                                ___BODY_AS(src,___tSUBTYPED)),
+                                              ___INT(___STRINGLENGTH(src)));
+  PYOBJECTPTR_REFCNT_SHOW(dst, \"string->PyObject*/str\");
+  ___return(dst);
+}
 
 "))
+
+(define (PyObject*/tuple->vector src)
+  (let ((dst
+         ((c-lambda (PyObject*/tuple) scheme-object "
+
+PyObjectPtr src = ___arg1;
+Py_ssize_t len = PyTuple_GET_SIZE(src);
+___SCMOBJ dst = ___EXT(___make_vector) (___PSTATE, len, ___FIX(0));
+
+if (___FIXNUMP(dst)) {
+  ___return(___VOID);
+} else {
+  Py_ssize_t i;
+  for (i=0; i<len; i++) {
+    PyObjectPtr item = PyTuple_GET_ITEM(src, i);
+    ___SCMOBJ item_scmobj;
+    if (PYOBJECTPTR_OWN_to_SCMOBJ(item, &item_scmobj, ___RETURN_POS)
+        == ___FIX(___NO_ERR)) {
+      ___VECTORSET(dst, ___FIX(i), ___EXT(___release_scmobj) (item_scmobj))
+    } else {
+      ___EXT(___release_scmobj) (dst);
+      ___return(___VOID);
+    }
+  }
+  ___return(___EXT(___release_scmobj) (dst));
+}
+
+")
+          src)))
+    (if (eq? dst (void))
+        (error "PyObject*/tuple->vector conversion error")
+        dst)))
+
+(define vector->PyObject*/tuple
+  (c-lambda (scheme-object) PyObject*/tuple "
+
+___SCMOBJ src = ___arg1;
+
+if (!___VECTORP(src)) {
+  ___return(NULL);
+} else {
+  Py_ssize_t len = ___INT(___VECTORLENGTH(src));
+  PyObjectPtr dst = PyTuple_New(len);
+  if (dst == NULL) {
+    ___return(NULL);
+  } else {
+    Py_ssize_t i;
+    for (i=0; i<len; i++) {
+      ___SCMOBJ item = ___VECTORREF(src,___FIX(i));
+      void* item_py;
+      if (SCMOBJ_to_PYOBJECTPTR(item, &item_py, ___RETURN_POS)
+          == ___FIX(___NO_ERR)) {
+        PYOBJECTPTR_INCREF(___CAST(PyObjectPtr,item_py), \"vector->PyObject*/tuple\");
+        PyTuple_SET_ITEM(dst, i, ___CAST(PyObjectPtr,item_py));
+      } else {
+        PYOBJECTPTR_DECREF(dst, \"vector->PyObject*/tuple\");
+        ___return(NULL);
+      }
+    }
+    PYOBJECTPTR_REFCNT_SHOW(dst, \"vector->PyObject*/tuple\");
+    ___return(dst);
+  }
+}
+
+"))
+
+(define (PyObject*/list->vector src)
+  (let ((dst
+         ((c-lambda (PyObject*/list) scheme-object "
+
+PyObjectPtr src = ___arg1;
+Py_ssize_t len = PyList_GET_SIZE(src);
+___SCMOBJ dst = ___EXT(___make_vector) (___PSTATE, len, ___FIX(0));
+
+if (___FIXNUMP(dst)) {
+  ___return(___VOID);
+} else {
+  Py_ssize_t i;
+  for (i=0; i<len; i++) {
+    PyObjectPtr item = PyList_GET_ITEM(src, i);
+    ___SCMOBJ item_scmobj;
+    if (PYOBJECTPTR_OWN_to_SCMOBJ(item, &item_scmobj, ___RETURN_POS)
+        == ___FIX(___NO_ERR)) {
+      ___VECTORSET(dst, ___FIX(i), ___EXT(___release_scmobj) (item_scmobj))
+    } else {
+      ___EXT(___release_scmobj) (dst);
+      ___return(___VOID);
+    }
+  }
+  ___return(___EXT(___release_scmobj) (dst));
+}
+
+")
+          src)))
+    (if (eq? dst (void))
+        (error "PyObject*/list->vector conversion error")
+        dst)))
+
+(define vector->PyObject*/list
+  (c-lambda (scheme-object) PyObject*/list "
+
+___SCMOBJ src = ___arg1;
+
+if (!___VECTORP(src)) {
+  ___return(NULL);
+} else {
+  Py_ssize_t len = ___INT(___VECTORLENGTH(src));
+  PyObjectPtr dst = PyList_New(len);
+  if (dst == NULL) {
+    ___return(NULL);
+  } else {
+    Py_ssize_t i;
+    for (i=0; i<len; i++) {
+      ___SCMOBJ item = ___VECTORREF(src,___FIX(i));
+      void* item_py;
+      if (SCMOBJ_to_PYOBJECTPTR(item, &item_py, ___RETURN_POS)
+          == ___FIX(___NO_ERR)) {
+        PYOBJECTPTR_INCREF(___CAST(PyObjectPtr,item_py), \"vector->PyObject*/list\");
+        PyList_SET_ITEM(dst, i, ___CAST(PyObjectPtr,item_py));
+      } else {
+        PYOBJECTPTR_DECREF(dst, \"vector->PyObject*/list\");
+        ___return(NULL);
+      }
+    }
+    PYOBJECTPTR_REFCNT_SHOW(dst, \"vector->PyObject*/list\");
+    ___return(dst);
+  }
+}
+
+"))
+
+;;;----------------------------------------------------------------------------
+
+;; Generic converters.
+
+(define (PyObject*->object src)
+
+  (define (conv src)
+    (case (car (##foreign-tags src))
+      ((PyObject*/None)  (PyObject*/None->void src))
+      ((PyObject*/bool)  (PyObject*/bool->boolean src))
+      ((PyObject*/int)   (PyObject*/int->exact-integer src))
+      ((PyObject*/str)   (PyObject*/str->string src))
+      ((PyObject*/tuple) (vector-conv src))
+      ((PyObject*/list)  (list-conv src))
+      (else              (error "can't convert" src))))
+
+  (define (vector-conv src)
+    (let ((vect (PyObject*/tuple->vector src)))
+      (let loop ((i (fx- (vector-length vect) 1)))
+        (if (fx< i 0)
+            vect
+            (begin
+              (vector-set! vect i (conv (vector-ref vect i)))
+              (loop (fx- i 1)))))))
+
+  (define (list-conv src)
+    (let* ((vect (PyObject*/list->vector src))
+           (len (vector-length vect)))
+      (let loop ((i (fx- len 1)) (lst '()))
+        (if (fx< i 0)
+            lst
+            (loop (fx- i 1)
+                  (cons (conv (vector-ref vect i))
+                        lst))))))
+
+  (if (##foreign? src)
+      (conv src)
+      src))
+
+(define (object->PyObject* src)
+
+  (define (conv src)
+    (cond ((eq? src (void))             (void->PyObject*/None src))
+          ((boolean? src)               (boolean->PyObject*/bool src))
+          ((exact-integer? src)         (exact-integer->PyObject*/int src))
+          ((string? src)                (string->PyObject*/str src))
+          ((vector? src)                (vector-conv src))
+          ((or (null? src) (pair? src)) (list-conv src))
+          (else                         (error "can't convert" src))))
+
+  (define (vector-conv src)
+    (let* ((len (vector-length src))
+           (vect (make-vector len)))
+      (let loop ((i (fx- len 1)))
+        (if (fx< i 0)
+            (vector->PyObject*/tuple vect)
+            (begin
+              (vector-set! vect i (conv (vector-ref src i)))
+              (loop (fx- i 1)))))))
+
+  (define (list-conv src)
+    (let loop1 ((probe src) (len 0))
+      (if (pair? probe)
+          (loop1 (cdr probe) (fx+ len 1))
+          (let ((vect (make-vector len)))
+            (let loop2 ((probe src) (i 0))
+              (if (not (and (fx< i len) (pair? probe)))
+                  (vector->PyObject*/list vect)
+                  (begin
+                    (vector-set! vect i (conv (car probe)))
+                    (loop2 (cdr probe) (fx+ i 1)))))))))
+
+  (conv src))
 
 ;;;----------------------------------------------------------------------------
 
