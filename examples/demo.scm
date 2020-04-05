@@ -57,8 +57,9 @@
 
 (##gc)
 
-(println "---------------------------------------------")
+;;(println "---------------------------------------------")
 
+#;
 (checks)
 
 #;
@@ -68,12 +69,26 @@
         (checks)
         (loop (- n 1)))))
 
-;(pretty-print (PyObject*/int->exact-integer py-None))
-;(pretty-print (PyObject*/int->exact-integer py-False))
-;(pretty-print (PyObject*/int->exact-integer py-True))
-;(pretty-print (PyObject*/int->exact-integer py-tiny-int))
-;(pretty-print (PyObject*/int->exact-integer py-max-fix))
-;(pretty-print (PyObject*/int->exact-integer py-max-ll))
-;;;;;;(pretty-print (PyObject*/int->exact-integer py-2^64))
+
+;(pp (PyObject*/tuple->vector (pyrun "(True,42,\"hello\")")))
+;(pp (PyObject*->object (pyrun "(True,42,\"hello\")")))
+
+(define x (pyrun "(None,False,True,[[],(),42,\"hello\"])"))
+(println "---------------------------------------------")
+(pp x)
+(println "---------------------------------------------")
+(pp (PyObject*/tuple->vector x))
+(println "---------------------------------------------")
+(pp (PyObject*->object x))
+(println "---------------------------------------------")
+(pp (PyObject*->object (object->PyObject* (PyObject*->object x))))
+(println "---------------------------------------------")
+
+#;
+(let loop ((n 1000000))
+  (if (> n 0)
+      (begin
+        (PyObject*->object (object->PyObject* (PyObject*->object x)))
+        (loop (- n 1)))))
 
 (Py_Finalize)

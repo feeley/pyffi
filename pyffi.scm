@@ -586,7 +586,7 @@ ___return(dst);
   (let ((dst
          ((c-lambda (PyObject*/int) scheme-object "
 
-PyObject* src = ___arg1;
+PyObjectPtr src = ___arg1;
 ___SCMOBJ dst = ___VOID;
 
 int overflow;
@@ -614,7 +614,7 @@ ___return(___EXT(___release_scmobj) (dst));
   (c-lambda (scheme-object) PyObject*/int "
 
 ___SCMOBJ src = ___arg1;
-PyObject* dst = NULL;
+PyObjectPtr dst = NULL;
 
 if (___FIXNUMP(src)) {
   dst = PyLong_FromLongLong(___INT(src));
@@ -629,14 +629,14 @@ ___return(dst);
   (let ((dst
          ((c-lambda (PyObject*/str) scheme-object "
 
-PyObject* src = ___arg1;
+PyObjectPtr src = ___arg1;
 ___SCMOBJ dst = ___VOID;
 
 if (!PyUnicode_READY(src)) { /* convert to canonical representation */
 
   Py_ssize_t len = PyUnicode_GET_LENGTH(src);
 
-  dst = ___alloc_scmobj(___PSTATE, ___sSTRING, len << ___LCS);
+  dst = ___EXT(___alloc_scmobj) (___PSTATE, ___sSTRING, len << ___LCS);
 
   if (___FIXNUMP(dst))
     dst = ___VOID;
@@ -678,21 +678,226 @@ ___return(___EXT(___release_scmobj) (dst));
   (c-lambda (scheme-object) PyObject*/str "
 
 ___SCMOBJ src = ___arg1;
-PyObject* dst = NULL;
 
-if (___STRINGP(src)) {
-  dst = PyUnicode_FromKindAndData(___CS_SELECT(PyUnicode_1BYTE_KIND,
-                                               PyUnicode_2BYTE_KIND,
-                                               PyUnicode_4BYTE_KIND),
-                                  ___CAST(void*,
-                                          ___BODY_AS(src,___tSUBTYPED)),
-                                  ___INT(___STRINGLENGTH(src)));
+if (!___STRINGP(src)) {
+  ___return(NULL);
+} else {
+  PyObjectPtr dst = PyUnicode_FromKindAndData(___CS_SELECT(
+                                                PyUnicode_1BYTE_KIND,
+                                                PyUnicode_2BYTE_KIND,
+                                                PyUnicode_4BYTE_KIND),
+                                              ___CAST(void*,
+                                                ___BODY_AS(src,___tSUBTYPED)),
+                                              ___INT(___STRINGLENGTH(src)));
   PYOBJECTPTR_REFCNT_SHOW(dst, \"string->PyObject*/str\");
+  ___return(dst);
 }
 
-___return(dst);
+"))
+
+(define (PyObject*/tuple->vector src)
+  (let ((dst
+         ((c-lambda (PyObject*/tuple) scheme-object "
+
+PyObjectPtr src = ___arg1;
+Py_ssize_t len = PyTuple_GET_SIZE(src);
+___SCMOBJ dst = ___EXT(___make_vector) (___PSTATE, len, ___FIX(0));
+
+if (___FIXNUMP(dst)) {
+  ___return(___VOID);
+} else {
+  Py_ssize_t i;
+  for (i=0; i<len; i++) {
+    PyObjectPtr item = PyTuple_GET_ITEM(src, i);
+    ___SCMOBJ item_scmobj;
+    if (PYOBJECTPTR_OWN_to_SCMOBJ(item, &item_scmobj, ___RETURN_POS)
+        == ___FIX(___NO_ERR)) {
+      ___VECTORSET(dst, ___FIX(i), ___EXT(___release_scmobj) (item_scmobj))
+    } else {
+      ___EXT(___release_scmobj) (dst);
+      ___return(___VOID);
+    }
+  }
+  ___return(___EXT(___release_scmobj) (dst));
+}
+
+")
+          src)))
+    (if (eq? dst (void))
+        (error "PyObject*/tuple->vector conversion error")
+        dst)))
+
+(define vector->PyObject*/tuple
+  (c-lambda (scheme-object) PyObject*/tuple "
+
+___SCMOBJ src = ___arg1;
+
+if (!___VECTORP(src)) {
+  ___return(NULL);
+} else {
+  Py_ssize_t len = ___INT(___VECTORLENGTH(src));
+  PyObjectPtr dst = PyTuple_New(len);
+  if (dst == NULL) {
+    ___return(NULL);
+  } else {
+    Py_ssize_t i;
+    for (i=0; i<len; i++) {
+      ___SCMOBJ item = ___VECTORREF(src,___FIX(i));
+      void* item_py;
+      if (SCMOBJ_to_PYOBJECTPTR(item, &item_py, ___RETURN_POS)
+          == ___FIX(___NO_ERR)) {
+        PYOBJECTPTR_INCREF(___CAST(PyObjectPtr,item_py), \"vector->PyObject*/tuple\");
+        PyTuple_SET_ITEM(dst, i, ___CAST(PyObjectPtr,item_py));
+      } else {
+        PYOBJECTPTR_DECREF(dst, \"vector->PyObject*/tuple\");
+        ___return(NULL);
+      }
+    }
+    PYOBJECTPTR_REFCNT_SHOW(dst, \"vector->PyObject*/tuple\");
+    ___return(dst);
+  }
+}
 
 "))
+
+(define (PyObject*/list->vector src)
+  (let ((dst
+         ((c-lambda (PyObject*/list) scheme-object "
+
+PyObjectPtr src = ___arg1;
+Py_ssize_t len = PyList_GET_SIZE(src);
+___SCMOBJ dst = ___EXT(___make_vector) (___PSTATE, len, ___FIX(0));
+
+if (___FIXNUMP(dst)) {
+  ___return(___VOID);
+} else {
+  Py_ssize_t i;
+  for (i=0; i<len; i++) {
+    PyObjectPtr item = PyList_GET_ITEM(src, i);
+    ___SCMOBJ item_scmobj;
+    if (PYOBJECTPTR_OWN_to_SCMOBJ(item, &item_scmobj, ___RETURN_POS)
+        == ___FIX(___NO_ERR)) {
+      ___VECTORSET(dst, ___FIX(i), ___EXT(___release_scmobj) (item_scmobj))
+    } else {
+      ___EXT(___release_scmobj) (dst);
+      ___return(___VOID);
+    }
+  }
+  ___return(___EXT(___release_scmobj) (dst));
+}
+
+")
+          src)))
+    (if (eq? dst (void))
+        (error "PyObject*/list->vector conversion error")
+        dst)))
+
+(define vector->PyObject*/list
+  (c-lambda (scheme-object) PyObject*/list "
+
+___SCMOBJ src = ___arg1;
+
+if (!___VECTORP(src)) {
+  ___return(NULL);
+} else {
+  Py_ssize_t len = ___INT(___VECTORLENGTH(src));
+  PyObjectPtr dst = PyList_New(len);
+  if (dst == NULL) {
+    ___return(NULL);
+  } else {
+    Py_ssize_t i;
+    for (i=0; i<len; i++) {
+      ___SCMOBJ item = ___VECTORREF(src,___FIX(i));
+      void* item_py;
+      if (SCMOBJ_to_PYOBJECTPTR(item, &item_py, ___RETURN_POS)
+          == ___FIX(___NO_ERR)) {
+        PYOBJECTPTR_INCREF(___CAST(PyObjectPtr,item_py), \"vector->PyObject*/list\");
+        PyList_SET_ITEM(dst, i, ___CAST(PyObjectPtr,item_py));
+      } else {
+        PYOBJECTPTR_DECREF(dst, \"vector->PyObject*/list\");
+        ___return(NULL);
+      }
+    }
+    PYOBJECTPTR_REFCNT_SHOW(dst, \"vector->PyObject*/list\");
+    ___return(dst);
+  }
+}
+
+"))
+
+;;;----------------------------------------------------------------------------
+
+;; Generic converters.
+
+(define (PyObject*->object src)
+
+  (define (conv src)
+    (case (car (##foreign-tags src))
+      ((PyObject*/None)  (PyObject*/None->void src))
+      ((PyObject*/bool)  (PyObject*/bool->boolean src))
+      ((PyObject*/int)   (PyObject*/int->exact-integer src))
+      ((PyObject*/str)   (PyObject*/str->string src))
+      ((PyObject*/tuple) (vector-conv src))
+      ((PyObject*/list)  (list-conv src))
+      (else              (error "can't convert" src))))
+
+  (define (vector-conv src)
+    (let ((vect (PyObject*/tuple->vector src)))
+      (let loop ((i (fx- (vector-length vect) 1)))
+        (if (fx< i 0)
+            vect
+            (begin
+              (vector-set! vect i (conv (vector-ref vect i)))
+              (loop (fx- i 1)))))))
+
+  (define (list-conv src)
+    (let* ((vect (PyObject*/list->vector src))
+           (len (vector-length vect)))
+      (let loop ((i (fx- len 1)) (lst '()))
+        (if (fx< i 0)
+            lst
+            (loop (fx- i 1)
+                  (cons (conv (vector-ref vect i))
+                        lst))))))
+
+  (if (##foreign? src)
+      (conv src)
+      src))
+
+(define (object->PyObject* src)
+
+  (define (conv src)
+    (cond ((eq? src (void))             (void->PyObject*/None src))
+          ((boolean? src)               (boolean->PyObject*/bool src))
+          ((exact-integer? src)         (exact-integer->PyObject*/int src))
+          ((string? src)                (string->PyObject*/str src))
+          ((vector? src)                (vector-conv src))
+          ((or (null? src) (pair? src)) (list-conv src))
+          (else                         (error "can't convert" src))))
+
+  (define (vector-conv src)
+    (let* ((len (vector-length src))
+           (vect (make-vector len)))
+      (let loop ((i (fx- len 1)))
+        (if (fx< i 0)
+            (vector->PyObject*/tuple vect)
+            (begin
+              (vector-set! vect i (conv (vector-ref src i)))
+              (loop (fx- i 1)))))))
+
+  (define (list-conv src)
+    (let loop1 ((probe src) (len 0))
+      (if (pair? probe)
+          (loop1 (cdr probe) (fx+ len 1))
+          (let ((vect (make-vector len)))
+            (let loop2 ((probe src) (i 0))
+              (if (not (and (fx< i len) (pair? probe)))
+                  (vector->PyObject*/list vect)
+                  (begin
+                    (vector-set! vect i (conv (car probe)))
+                    (loop2 (cdr probe) (fx+ i 1)))))))))
+
+  (conv src))
 
 ;;;----------------------------------------------------------------------------
 
