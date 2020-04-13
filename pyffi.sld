@@ -15,6 +15,8 @@
    ;; Initialization, Finalization, and Threads
    Py_Initialize
    Py_Finalize
+   Py_SetPath
+   Py_SetPythonHome
 
    ;; PyRun_*
    PyRun_SimpleString
@@ -41,6 +43,9 @@
 
    ;; PyObject_*
    PyObject_CallMethod
+   PyObject_GetAttrString
+   PyObject*-type
+   PyObject*-type-name
 
    ;; Converters
    PyObject*/None->void

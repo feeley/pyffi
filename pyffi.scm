@@ -193,6 +193,18 @@ end-of-c-declare
 (define-python-subtype-type "set")
 (define-python-subtype-type "tuple")
 (define-python-subtype-type "module")
+(define-python-subtype-type "type")
+
+;;;----------------------------------------------------------------------------
+
+;; Define PyTypeObject* foreign type.
+
+;; NOTE: Not sure yet if we want to use raw PyTypeObjects.
+
+(c-define-type PyTypeObject "PyTypeObject")
+
+(c-define-type PyTypeObject*
+               (nonnull-pointer PyTypeObject (PyTypeObject*)))
 
 ;;;----------------------------------------------------------------------------
 
@@ -542,6 +554,27 @@ ___SCMOBJ SCMOBJ_to_PYOBJECTPTR" _SUBTYPE "(___SCMOBJ src, void **dst, int arg_n
 (define PyObject_CallMethod
   (c-lambda (PyObject* UTF-8-string UTF-8-string) PyObject*
             "PyObject_CallMethod"))
+
+(define PyObject_GetAttrString
+  (c-lambda (PyObject* UTF-8-string) PyObject*
+            "PyObject_GetAttrString"))
+
+;; Get object type from struct field, no new reference.
+(define PyObject*-type
+  (c-lambda (_PyObject*) PyTypeObject*
+            "___return(___arg1->ob_type);"))
+
+(define PyObject*-type-name
+  (c-lambda (_PyObject*) UTF-8-string
+            "___return(___arg1->ob_type->tp_name);"))
+
+(define Py_SetPath
+  (c-lambda (nonnull-wchar_t-string) void
+            "Py_SetPath"))
+
+(define Py_SetPythonHome
+  (c-lambda (nonnull-wchar_t-string) void
+            "Py_SetPythonHome"))
 
 ;;;----------------------------------------------------------------------------
 
