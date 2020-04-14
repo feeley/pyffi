@@ -559,6 +559,14 @@ ___SCMOBJ SCMOBJ_to_PYOBJECTPTR" _SUBTYPE "(___SCMOBJ src, void **dst, int arg_n
   (c-lambda (PyObject* UTF-8-string) PyObject*
             "PyObject_GetAttrString"))
 
+(define PyObject_Length
+  (c-lambda (PyObject*) ssize_t
+            "PyObject_Length"))
+
+(define PyObject_Repr
+  (c-lambda (PyObject*) PyObject*/str
+            "PyObject_Repr"))
+
 ;; Get object type from struct field, no new reference.
 (define PyObject*-type
   (c-lambda (_PyObject*) PyTypeObject*

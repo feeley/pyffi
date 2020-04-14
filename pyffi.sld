@@ -44,6 +44,8 @@
    ;; PyObject_*
    PyObject_CallMethod
    PyObject_GetAttrString
+   PyObject_Length
+   PyObject_Repr
    PyObject*-type
    PyObject*-type-name
 
