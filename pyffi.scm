@@ -497,6 +497,32 @@ ___SCMOBJ SCMOBJ_to_PYOBJECTPTR" _SUBTYPE "(___SCMOBJ src, void **dst, int arg_n
 
 ;;;----------------------------------------------------------------------------
 
+(c-declare #<<end-of-c-declare
+
+void set_err_state(___SCMOBJ *err, ___SCMOBJ *errdata, ___SCMOBJ *errhandler) {
+  *err = PYOBJECTPTR_to_SCMOBJ(PyErr_Occurred(), errdata, ___RETURN_POS);
+  *errhandler = ___GLO_github_2e_com_2f_feeley_2f_pyffi_23_pyffi_2d_error_2d_handler;
+}
+
+#define call_with_check_PyObjectPtr(call) \
+do { \
+  PyObjectPtr result = call; \
+  if (result == NULL) { \
+    set_err_state(&___err, &___errdata, &___errhandler); \
+  } \
+  ___return(result); \
+} while (0)
+
+end-of-c-declare
+)
+
+(define (pyffi-error-handler code data proc . args)
+;;  (pretty-print (list 'python-error-handler code data proc args))
+  (error (string-append "Python error: "
+                        (PyObject*/str->string (PyObject_Repr data)))))
+
+;;;----------------------------------------------------------------------------
+
 ;; Use for debugging
 (define _Py_REFCNT
   (c-lambda (PyObject*) ssize_t
@@ -518,71 +544,72 @@ ___SCMOBJ SCMOBJ_to_PYOBJECTPTR" _SUBTYPE "(___SCMOBJ src, void **dst, int arg_n
 
 (define PyBool_FromLong
   (c-lambda (long) PyObject*/bool
-    "PyBool_FromLong"))
+    "call_with_check_PyObjectPtr(PyBool_FromLong(___arg1));"))
 
 (define PyLong_FromUnicodeObject
   (c-lambda (PyObject*/str int) PyObject*/int
-    "PyLong_FromUnicodeObject"))
+    "call_with_check_PyObjectPtr(PyLong_FromUnicodeObject(___arg1,___arg2));"))
 
 (define PyUnicode_FromString
-  (c-lambda (UTF-8-string) PyObject*/str
-    "PyUnicode_FromString"))
+  (c-lambda (nonnull-UTF-8-string) PyObject*/str
+    "call_with_check_PyObjectPtr(PyUnicode_FromString(___arg1));"))
 
 (define PyRun_SimpleString
-  (c-lambda (UTF-8-string) int "PyRun_SimpleString"))
+  (c-lambda (nonnull-UTF-8-string) int
+    "PyRun_SimpleString"))
 
 (define PyRun_String
-  (c-lambda (UTF-8-string int PyObject*/dict PyObject*/dict) PyObject*
-    "PyRun_String"))
+  (c-lambda (nonnull-UTF-8-string int PyObject*/dict PyObject*/dict) PyObject*
+    "call_with_check_PyObjectPtr(PyRun_String(___arg1,___arg2,___arg3,___arg4));"))
 
 (define PyImport_AddModuleObject
   (c-lambda (PyObject*/str) PyObject*/module
-    "PyImport_AddModuleObject"))
+    "call_with_check_PyObjectPtr(PyImport_AddModuleObject(___arg1));"))
 
 (define PyImport_ImportModule
-  (c-lambda (UTF-8-string) PyObject*/module
-            "PyImport_ImportModule"))
+  (c-lambda (nonnull-UTF-8-string) PyObject*/module
+    "call_with_check_PyObjectPtr(PyImport_AddModule(___arg1));"))
 
 (define PyModule_GetDict
   (c-lambda (PyObject*/module) PyObject*/dict
-    "PyModule_GetDict"))
+    "call_with_check_PyObjectPtr(PyModule_GetDict(___arg1));"))
 
 (define PyDict_New
   (c-lambda () PyObject*/dict
-            "PyDict_New"))
+    "call_with_check_PyObjectPtr(PyDict_New());"))
 
 (define PyObject_CallMethod
-  (c-lambda (PyObject* UTF-8-string UTF-8-string) PyObject*
-            "PyObject_CallMethod"))
+  (c-lambda (PyObject* nonnull-UTF-8-string nonnull-UTF-8-string) PyObject*
+    "call_with_check_PyObjectPtr(PyObject_CallMethod(___arg1,___arg2,___arg3));"))
 
 (define PyObject_GetAttrString
-  (c-lambda (PyObject* UTF-8-string) PyObject*
-            "PyObject_GetAttrString"))
+  (c-lambda (PyObject* nonnull-UTF-8-string) PyObject*
+    "call_with_check_PyObjectPtr(PyObject_GetAttrString(___arg1,___arg2));"))
 
 (define PyObject_Length
   (c-lambda (PyObject*) ssize_t
-            "PyObject_Length"))
+    "PyObject_Length"))
 
 (define PyObject_Repr
   (c-lambda (PyObject*) PyObject*/str
-            "PyObject_Repr"))
+    "call_with_check_PyObjectPtr(PyObject_Repr(___arg1));"))
 
 ;; Get object type from struct field, no new reference.
 (define PyObject*-type
   (c-lambda (_PyObject*) PyTypeObject*
-            "___return(___arg1->ob_type);"))
+    "___return(___arg1->ob_type);"))
 
 (define PyObject*-type-name
-  (c-lambda (_PyObject*) UTF-8-string
-            "___return(___arg1->ob_type->tp_name);"))
+  (c-lambda (_PyObject*) nonnull-UTF-8-string
+    "___return(___arg1->ob_type->tp_name);"))
 
 (define Py_SetPath
   (c-lambda (nonnull-wchar_t-string) void
-            "Py_SetPath"))
+    "Py_SetPath"))
 
 (define Py_SetPythonHome
   (c-lambda (nonnull-wchar_t-string) void
-            "Py_SetPythonHome"))
+    "Py_SetPythonHome"))
 
 ;;;----------------------------------------------------------------------------
 

@@ -37,6 +37,10 @@
 (pp (PyObject*/str->string (string->PyObject*/str "hello")))
 
 (pp (PyObject*/str->string (pyrun "'ab'+'cd'")))
+
+(with-exception-catcher
+ (lambda (exc) (print "exception: ") (display-exception exc))
+ (lambda () (pp (PyObject*/str->string (pyrun "'ab'+1")))))
 )
 
 ;(Py_Finalize)
