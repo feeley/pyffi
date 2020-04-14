@@ -516,10 +516,27 @@ do { \
 end-of-c-declare
 )
 
+(define-type python-exception
+  id: A9EC1C11-A6D8-4357-99E6-655B75ADC09E
+  type-exhibitor: python-exception-type
+  data
+  proc
+  args)
+
+(##structure-display-exception-handler-register!
+ (##type-id (python-exception-type))
+ (lambda (exc port)
+   (if port
+       (display (string-append "Python error: "
+                               (PyObject*/str->string
+                                (PyObject_Repr (python-exception-data exc)))
+                               "\n")
+                port)
+       (cons (python-exception-proc exc)
+             (python-exception-args exc)))))
+
 (define (pyffi-error-handler code data proc . args)
-;;  (pretty-print (list 'python-error-handler code data proc args))
-  (error (string-append "Python error: "
-                        (PyObject*/str->string (PyObject_Repr data)))))
+  (raise (make-python-exception data proc args)))
 
 ;;;----------------------------------------------------------------------------
 
