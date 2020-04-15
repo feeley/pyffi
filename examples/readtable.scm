@@ -13,6 +13,7 @@
       (display "VENV_PATH not set") (newline)
       (exit #f)))
 
+;; Assumes a proper virtualenv, created with virtualenv, not python -m venv
 (define (venv-path->PYTHONPATH p)
   (string-append
    (string-append p "/lib/python37.zip")
@@ -65,7 +66,7 @@
 (define globals (PyModule_GetDict __main__))
 (define locals (PyDict_New))
 
-(define numpy (PyImport_ImportModule "numpy"))
+(define numpy (PyImport_ImportModuleEx "numpy" globals locals (PyList_New 0)))
 (define numpy_dict (PyModule_GetDict numpy))
 
 (define (pyrun s #!optional (d globals))

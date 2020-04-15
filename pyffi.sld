@@ -25,12 +25,16 @@
    ;; PyImport_*
    PyImport_AddModuleObject
    PyImport_ImportModule
+   PyImport_ImportModuleEx
 
    ;; PyModule_*
    PyModule_GetDict
 
    ;; PyDict_*
    PyDict_New
+
+   ;; PyList_*
+   PyList_New
 
    ;; PyBool_*
    PyBool_FromLong

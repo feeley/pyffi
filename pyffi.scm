@@ -583,9 +583,20 @@ end-of-c-declare
   (c-lambda (PyObject*/str) PyObject*/module
     "call_with_check_PyObjectPtr(PyImport_AddModuleObject(___arg1));"))
 
+;; Fails when called with call_with_check_PyObjectPtr
+;; (define PyImport_ImportModule
+;;   (c-lambda (nonnull-UTF-8-string) PyObject*/module
+;;     "call_with_check_PyObjectPtr(PyImport_AddModule(___arg1));"))
 (define PyImport_ImportModule
   (c-lambda (nonnull-UTF-8-string) PyObject*/module
-    "call_with_check_PyObjectPtr(PyImport_AddModule(___arg1));"))
+    "PyImport_ImportModule"))
+
+(define PyImport_ImportModuleEx
+  (c-lambda (nonnull-UTF-8-string PyObject*/dict PyObject*/dict PyObject*/list)
+            PyObject*/module
+            "
+call_with_check_PyObjectPtr(PyImport_ImportModuleEx(___arg1,___arg2,___arg3,___arg4));
+"))
 
 (define PyModule_GetDict
   (c-lambda (PyObject*/module) PyObject*/dict
@@ -594,6 +605,10 @@ end-of-c-declare
 (define PyDict_New
   (c-lambda () PyObject*/dict
     "call_with_check_PyObjectPtr(PyDict_New());"))
+
+(define PyList_New
+  (c-lambda (int) PyObject*/list
+            "call_with_check_PyObjectPtr(PyList_New(___arg1));"))
 
 (define PyObject_CallMethod
   (c-lambda (PyObject* nonnull-UTF-8-string nonnull-UTF-8-string) PyObject*
