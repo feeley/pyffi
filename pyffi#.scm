@@ -40,6 +40,9 @@
               ;; PyList_*
               PyList_New
 
+              ;; PyTuple_*
+              PyTuple_GetItem
+
               ;; PyBool_*
               PyBool_FromLong
 

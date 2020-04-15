@@ -533,11 +533,19 @@ end-of-c-declare
  (##type-id (python-exception-type))
  (lambda (exc port)
    (if port
-       (display (string-append "Python error: "
-                               (PyObject*/str->string
-                                (PyObject_Repr (python-exception-data exc)))
-                               "\n")
-                port)
+       (let* ((exc-data (python-exception-data exc))
+              (exc-val (PyTuple_GetItem exc-data 0))
+              (exc-tb (PyTuple_GetItem exc-data 1)))
+         (display (string-append "Python raised "
+                                 (PyObject*/str->string
+                                  (PyObject_Repr exc-val))
+                                 "\n"
+                                 (PyObject*/str->string
+                                  (PyObject_Repr exc-tb))
+                                 "\n"
+                                 )
+                  port)
+         )
        (cons (python-exception-proc exc)
              (python-exception-args exc)))))
 
@@ -589,10 +597,6 @@ end-of-c-declare
   (c-lambda (PyObject*/str) PyObject*/module
     "call_with_check_PyObjectPtr(PyImport_AddModuleObject(___arg1));"))
 
-;; Fails when called with call_with_check_PyObjectPtr
-;; (define PyImport_ImportModule
-;;   (c-lambda (nonnull-UTF-8-string) PyObject*/module
-;;     "call_with_check_PyObjectPtr(PyImport_AddModule(___arg1));"))
 (define PyImport_ImportModule
   (c-lambda (nonnull-UTF-8-string) PyObject*/module
     "PyImport_ImportModule"))
@@ -615,6 +619,10 @@ call_with_check_PyObjectPtr(PyImport_ImportModuleEx(___arg1,___arg2,___arg3,___a
 (define PyList_New
   (c-lambda (int) PyObject*/list
             "call_with_check_PyObjectPtr(PyList_New(___arg1));"))
+
+(define PyTuple_GetItem
+  (c-lambda (PyObject*/tuple ssize_t) PyObject*
+            "PyTuple_GetItem"))
 
 (define PyObject_CallMethod
   (c-lambda (PyObject* nonnull-UTF-8-string nonnull-UTF-8-string) PyObject*
