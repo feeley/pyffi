@@ -499,25 +499,76 @@ ___SCMOBJ SCMOBJ_to_PYOBJECTPTR" _SUBTYPE "(___SCMOBJ src, void **dst, int arg_n
 
 (c-declare #<<end-of-c-declare
 
-PyObjectPtr check_PyObjectPtr(PyObjectPtr result, ___SCMOBJ *err, ___SCMOBJ *errdata, ___SCMOBJ *errhandler) {
-  if (result == NULL) {
-    PyObjectPtr tuple;
-    PyObjectPtr type;
-    PyObjectPtr value;
-    PyObjectPtr traceback;
-    tuple = PyTuple_New(2);
-    PyErr_Fetch(&type, &value, &traceback);
-    PyErr_NormalizeException(&type, &value, &traceback);
-    PyTuple_SET_ITEM(tuple, 0, value);
-    PyTuple_SET_ITEM(tuple, 1, traceback);
-    *err = PYOBJECTPTR_to_SCMOBJ(tuple, errdata, ___RETURN_POS);
-    *errhandler = ___GLO_github_2e_com_2f_feeley_2f_pyffi_23_pyffi_2d_error_2d_handler;
+void set_err(___SCMOBJ *err, ___SCMOBJ *errdata, ___SCMOBJ *errhandler) {
+
+  ___SCMOBJ e;
+  ___SCMOBJ val_scmobj;
+  ___SCMOBJ tb_scmobj;
+  PyObjectPtr type;
+  PyObjectPtr val;
+  PyObjectPtr tb;
+
+  PyErr_Fetch(&type, &val, &tb);
+
+  PYOBJECTPTR_INCREF(type, "set_err");
+  PYOBJECTPTR_INCREF(val, "set_err");
+  PYOBJECTPTR_INCREF(tb, "set_err");
+
+  PyErr_NormalizeException(&type, &val, &tb);
+
+  if ((e = PYOBJECTPTR_to_SCMOBJ(val, &val_scmobj, ___RETURN_POS))
+      == ___FIX(___NO_ERR)) {
+    if ((e = PYOBJECTPTR_to_SCMOBJ(tb, &tb_scmobj, ___RETURN_POS))
+        != ___FIX(___NO_ERR)) {
+      ___EXT(___release_scmobj) (val_scmobj);
+    } else {
+      *errdata = ___EXT(___make_pair) (___PSTATE, val_scmobj, tb_scmobj);
+      ___EXT(___release_scmobj) (val_scmobj);
+      ___EXT(___release_scmobj) (tb_scmobj);
+      if (___FIXNUMP(*errdata)) {
+        e = *errdata;
+      }
+    }
   }
+
+  PYOBJECTPTR_DECREF(type, "set_err");
+
+  if (e != ___FIX(___NO_ERR)) {
+    PYOBJECTPTR_DECREF(val, "set_err");
+    PYOBJECTPTR_DECREF(tb, "set_err");
+  }
+
+  *err = e;
+  *errhandler = ___GLO_github_2e_com_2f_feeley_2f_pyffi_23_pyffi_2d_error_2d_handler;
+}
+
+PyObjectPtr check_PyObjectPtr(PyObjectPtr result, ___SCMOBJ *err, ___SCMOBJ *errdata, ___SCMOBJ *errhandler) {
+  if (result == NULL) set_err(err, errdata, errhandler);
   return result;
 }
 
-#define call_with_check_PyObjectPtr(call) \
+
+int check_int(int result, ___SCMOBJ *err, ___SCMOBJ *errdata, ___SCMOBJ *errhandler) {
+  /*TODO*/
+  return result;
+}
+
+ssize_t check_ssize_t(ssize_t result, ___SCMOBJ *err, ___SCMOBJ *errdata, ___SCMOBJ *errhandler) {
+  /*TODO*/
+  return result;
+}
+
+#define return_with_check_PyObjectPtr(call) \
 ___return(check_PyObjectPtr(call, &___err, &___errdata, &___errhandler));
+
+#define return_with_check_int(call) \
+___return(check_int(call, &___err, &___errdata, &___errhandler));
+
+#define return_with_check_ssize_t(call) \
+___return(check_ssize_t(call, &___err, &___errdata, &___errhandler));
+
+#define return_with_check_void(call) \
+call; ___return;
 
 end-of-c-declare
 )
@@ -533,15 +584,15 @@ end-of-c-declare
  (##type-id (python-exception-type))
  (lambda (exc port)
    (if port
-       (let* ((exc-data (python-exception-data exc))
-              (exc-val (PyTuple_GetItem exc-data 0))
-              (exc-tb (PyTuple_GetItem exc-data 1)))
+       (let* ((val-tb (python-exception-data exc))
+              (val (car val-tb))
+              (tb (cdr val-tb)))
          (display (string-append "Python raised "
                                  (PyObject*/str->string
-                                  (PyObject_Repr exc-val))
+                                  (PyObject_Repr val))
                                  "\n"
                                  (PyObject*/str->string
-                                  (PyObject_Repr exc-tb))
+                                  (PyObject_Repr tb))
                                  "\n"
                                  )
                   port)
@@ -554,91 +605,78 @@ end-of-c-declare
 
 ;;;----------------------------------------------------------------------------
 
-;; Use for debugging
-(define _Py_REFCNT
-  (c-lambda (PyObject*) ssize_t
-    "___return(Py_REFCNT(___arg1));"))
-
 ;; Interface to Python API.
+
+(define-macro (def-api name result-type arg-types)
+  (let* ((result-type-str
+          (symbol->string result-type))
+         (base-result-type-str
+          (if (eqv? 0 (##string-contains result-type-str "PyObject*"))
+              "PyObjectPtr"
+              result-type-str)))
+    `(define ,name
+       (c-lambda ,arg-types
+                 ,result-type
+         ,(string-append "return_with_check_"
+                         base-result-type-str
+                         "("
+                         (symbol->string name)
+                         "("
+                         (append-strings
+                          (map (lambda (i)
+                                 (string-append "___arg" (number->string i)))
+                               (iota (length arg-types) 1))
+                          ",")
+                         "));")))))
 
 (define Py_eval_input   ((c-lambda () int "___return(Py_eval_input);")))
 (define Py_file_input   ((c-lambda () int "___return(Py_file_input);")))
 (define Py_single_input ((c-lambda () int "___return(Py_single_input);")))
 
-(define Py_Initialize
-  (c-lambda () void
-    "Py_Initialize"))
+(def-api Py_Initialize            void             ())
+(def-api Py_Finalize              void             ())
 
-(define Py_Finalize
-  (c-lambda () void
-    "Py_Finalize"))
+(def-api PyBool_FromLong          PyObject*/bool   (long))
 
-(define PyBool_FromLong
-  (c-lambda (long) PyObject*/bool
-    "call_with_check_PyObjectPtr(PyBool_FromLong(___arg1));"))
+(def-api PyLong_FromUnicodeObject PyObject*/int    (PyObject*/str int))
 
-(define PyLong_FromUnicodeObject
-  (c-lambda (PyObject*/str int) PyObject*/int
-    "call_with_check_PyObjectPtr(PyLong_FromUnicodeObject(___arg1,___arg2));"))
+(def-api PyUnicode_FromString     PyObject*/str    (nonnull-UTF-8-string))
 
-(define PyUnicode_FromString
-  (c-lambda (nonnull-UTF-8-string) PyObject*/str
-    "call_with_check_PyObjectPtr(PyUnicode_FromString(___arg1));"))
+(def-api PyRun_SimpleString       int              (nonnull-UTF-8-string))
 
-(define PyRun_SimpleString
-  (c-lambda (nonnull-UTF-8-string) int
-    "PyRun_SimpleString"))
+(def-api PyRun_String             PyObject*        (nonnull-UTF-8-string
+                                                    int
+                                                    PyObject*/dict
+                                                    PyObject*/dict))
 
-(define PyRun_String
-  (c-lambda (nonnull-UTF-8-string int PyObject*/dict PyObject*/dict) PyObject*
-    "call_with_check_PyObjectPtr(PyRun_String(___arg1,___arg2,___arg3,___arg4));"))
+(def-api PyImport_AddModuleObject PyObject*/module (PyObject*/str))
+(def-api PyImport_ImportModule    PyObject*/module (nonnull-UTF-8-string))
+(def-api PyImport_ImportModuleEx  PyObject*/module (nonnull-UTF-8-string
+                                                    PyObject*/dict
+                                                    PyObject*/dict
+                                                    PyObject*/list))
 
-(define PyImport_AddModuleObject
-  (c-lambda (PyObject*/str) PyObject*/module
-    "call_with_check_PyObjectPtr(PyImport_AddModuleObject(___arg1));"))
+(def-api PyModule_GetDict         PyObject*/dict   (PyObject*/module))
+(def-api PyDict_New               PyObject*/dict   ())
 
-(define PyImport_ImportModule
-  (c-lambda (nonnull-UTF-8-string) PyObject*/module
-    "PyImport_ImportModule"))
+(def-api PyList_New               PyObject*/list   (int))
 
-(define PyImport_ImportModuleEx
-  (c-lambda (nonnull-UTF-8-string PyObject*/dict PyObject*/dict PyObject*/list)
-            PyObject*/module
-            "
-call_with_check_PyObjectPtr(PyImport_ImportModuleEx(___arg1,___arg2,___arg3,___arg4));
-"))
+(def-api PyTuple_GetItem          PyObject*        (PyObject*/tuple
+                                                    ssize_t))
 
-(define PyModule_GetDict
-  (c-lambda (PyObject*/module) PyObject*/dict
-    "call_with_check_PyObjectPtr(PyModule_GetDict(___arg1));"))
+(def-api PyObject_CallMethod      PyObject*        (PyObject*
+                                                    nonnull-UTF-8-string
+                                                    nonnull-UTF-8-string))
 
-(define PyDict_New
-  (c-lambda () PyObject*/dict
-    "call_with_check_PyObjectPtr(PyDict_New());"))
+(def-api PyObject_GetAttrString   PyObject*        (PyObject*
+                                                    nonnull-UTF-8-string))
 
-(define PyList_New
-  (c-lambda (int) PyObject*/list
-            "call_with_check_PyObjectPtr(PyList_New(___arg1));"))
+(def-api PyObject_Length          ssize_t          (PyObject*))
 
-(define PyTuple_GetItem
-  (c-lambda (PyObject*/tuple ssize_t) PyObject*
-            "PyTuple_GetItem"))
+(def-api PyObject_Repr            PyObject*/str    (PyObject*))
 
-(define PyObject_CallMethod
-  (c-lambda (PyObject* nonnull-UTF-8-string nonnull-UTF-8-string) PyObject*
-    "call_with_check_PyObjectPtr(PyObject_CallMethod(___arg1,___arg2,___arg3));"))
-
-(define PyObject_GetAttrString
-  (c-lambda (PyObject* nonnull-UTF-8-string) PyObject*
-    "call_with_check_PyObjectPtr(PyObject_GetAttrString(___arg1,___arg2));"))
-
-(define PyObject_Length
-  (c-lambda (PyObject*) ssize_t
-    "PyObject_Length"))
-
-(define PyObject_Repr
-  (c-lambda (PyObject*) PyObject*/str
-    "call_with_check_PyObjectPtr(PyObject_Repr(___arg1));"))
+(def-api Py_SetPath               void             (nonnull-wchar_t-string))
+(def-api Py_SetPythonHome         void             (nonnull-wchar_t-string))
 
 ;; Get object type from struct field, no new reference.
 (define PyObject*-type
@@ -649,13 +687,10 @@ call_with_check_PyObjectPtr(PyImport_ImportModuleEx(___arg1,___arg2,___arg3,___a
   (c-lambda (_PyObject*) nonnull-UTF-8-string
     "___return(___arg1->ob_type->tp_name);"))
 
-(define Py_SetPath
-  (c-lambda (nonnull-wchar_t-string) void
-    "Py_SetPath"))
-
-(define Py_SetPythonHome
-  (c-lambda (nonnull-wchar_t-string) void
-    "Py_SetPythonHome"))
+;; Use for debugging
+(define _Py_REFCNT
+  (c-lambda (PyObject*) ssize_t
+    "___return(Py_REFCNT(___arg1));"))
 
 ;;;----------------------------------------------------------------------------
 
