@@ -499,19 +499,25 @@ ___SCMOBJ SCMOBJ_to_PYOBJECTPTR" _SUBTYPE "(___SCMOBJ src, void **dst, int arg_n
 
 (c-declare #<<end-of-c-declare
 
-void set_err_state(___SCMOBJ *err, ___SCMOBJ *errdata, ___SCMOBJ *errhandler) {
-  *err = PYOBJECTPTR_to_SCMOBJ(PyErr_Occurred(), errdata, ___RETURN_POS);
-  *errhandler = ___GLO_github_2e_com_2f_feeley_2f_pyffi_23_pyffi_2d_error_2d_handler;
+PyObjectPtr check_PyObjectPtr(PyObjectPtr result, ___SCMOBJ *err, ___SCMOBJ *errdata, ___SCMOBJ *errhandler) {
+  if (result == NULL) {
+    PyObjectPtr tuple;
+    PyObjectPtr type;
+    PyObjectPtr value;
+    PyObjectPtr traceback;
+    tuple = PyTuple_New(2);
+    PyErr_Fetch(&type, &value, &traceback);
+    PyErr_NormalizeException(&type, &value, &traceback);
+    PyTuple_SET_ITEM(tuple, 0, value);
+    PyTuple_SET_ITEM(tuple, 1, traceback);
+    *err = PYOBJECTPTR_to_SCMOBJ(tuple, errdata, ___RETURN_POS);
+    *errhandler = ___GLO_github_2e_com_2f_feeley_2f_pyffi_23_pyffi_2d_error_2d_handler;
+  }
+  return result;
 }
 
 #define call_with_check_PyObjectPtr(call) \
-do { \
-  PyObjectPtr result = call; \
-  if (result == NULL) { \
-    set_err_state(&___err, &___errdata, &___errhandler); \
-  } \
-  ___return(result); \
-} while (0)
+___return(check_PyObjectPtr(call, &___err, &___errdata, &___errhandler));
 
 end-of-c-declare
 )
