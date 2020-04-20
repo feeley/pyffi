@@ -1,11 +1,22 @@
 # pyffi
 Gambit Scheme library to interface to Python
 
+**This library depends on new Gambit features not yet made into a release.
+Please build using Gambit@HEAD.**
+
+**Programmers are encouraged to read the Python C API specification.**
+
 ## Build instructions
 
-The library is compatible with Gambit's primitive module system and the R7RS libraries.
+The library is compatible with Gambit's primitive module system and the R7RS
+libraries.
 
-Let's say you develop in `/home/me/dev/gambit-modules`. Follow these instructions to get going (with hacks to fix issues with modules):
+Assuming you
+- have compiled Gambit@HEAD,
+- are developing Gambit modules in `/home/me/dev/gambit-modules`,
+- have Python 3.7 _with development sources_ available,
+
+these instructions should allow you to build `pyffi`:
 
 ```
 cd /home/me/.gambit_userlib
@@ -17,26 +28,79 @@ cd pyffi
 make ln
 make
 ln -s /home/me/dev/gambit-modules/pyffi ~/.gambit_userlib/github.com/feeley/pyffi
-LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libpython3.7m.so gsi github.com/feeley/pyffi/demo
 ```
 
-should print something like:
+## Examples
+
+After building the library, you should be able to run the examples in the
+`examples` directory. Some examples require the use of `virtualenv`. Make sure
+you have it installed. A `Makefile` is provided to facilitate demonstrations.
+
+### Vanilla python
+
+This example works out of the box requiring only built-in python modules. From
+the `pyffi` directory:
 
 ```
-id github.com/feeley/pyffi/demo
+cd examples
+make demo
+```
+
+should output
+
+```
+gsi demo.scm
 result=200
-#<PyObject* #2 0x7fc736584980>
-#<PyObject* #3 0x7fc734e033e8>
-"0"
-"Hello, world!"
-"3.141592653589793"
+#<PyObject*/str #2 'hello, world!'>
+"hello, world!"
+---------------------------------------------
+#<PyObject*/tuple #3 (None, False, True, [[], (), 42, 'hello'])>
+---------------------------------------------
+#(#<PyObject*/None #4 None>
+  #<PyObject*/bool #5 False>
+  #<PyObject*/bool #6 True>
+  #<PyObject*/list #7 [[], (), 42, 'hello']>)
+---------------------------------------------
+(#!void #f #t #(#() () 42 "hello"))
+---------------------------------------------
+(#!void #f #t #(#() () 42 "hello"))
+---------------------------------------------
+```
+
+Notice the rich information displayed in the foreign objects. This information
+can be displayed or not depending on your needs. Modify
+[examples/demo.scm](examples/demo.scm) to `register-foreign-write-handlers` or
+not.
+
+### Python + virtualenv
+
+A common way to manage python versions and dependencies is to use a virtual
+environment. Here we assume that you have installed `virtualenv` (not `python3
+-m venv`) and are able to use it.
+
+A lot of third-party libraries you will install in virtualenvs will require
+linking with `libpython`. The makefile sets `LD_PRELOAD` to the default
+python3.7 shared library path on Debian 10. You will need to provide your own
+`LD_PRELOAD` if that default is not correct for your system.
+
+The makefile also sets the `VENV_PATH` environment variable. This is required to
+tell the Python C API where to look for modules. In our case, we want modules to
+be searched for in the virtualenv.
+
+#### requests
+
+As a first example, let's use the popular `requests` package from PyPI. From the
+`examples` directory:
+
+```
+make requests
+```
+
+This will set up the correct virtualenvironment
+
+```
+#<PyObject*/str #2 "{'origin': 'x.x.x.x'}">
 "{'origin': 'x.x.x.x'}"
 ```
 
-run from whichever directory. The files will be where the module system expects them to...
-
-Don't forget to set `LD_PRELOAD` to the proper shared library path or you will not be able to import third-party modules.
-
-The file pyffi.scm will have to be adjusted with the correct paths to the python libraries... it currently works on macOS after a `brew install python3`.
-
-Notification test.
+Again, notice the rich foreign-object information.
