@@ -3,6 +3,9 @@
 (import (github.com/feeley pyffi))
 (import (gambit))
 
+;; enable rich python foreign-object representation
+(register-foreign-write-handlers)
+
 (Py_Initialize)
 
 (PyRun_SimpleString "print('result=' + repr(10*20));")

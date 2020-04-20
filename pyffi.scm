@@ -1082,3 +1082,40 @@ if (!___VECTORP(src)) {
    (c-lambda () _PyObject*/module "___return(NULL);")))
 
 ;;;----------------------------------------------------------------------------
+
+;; Misc
+
+(define (PyObject*-register-foreign-write-handler t)
+  (##readtable-foreign-write-handler-register!
+   ##main-readtable
+   t
+   (lambda (we obj)
+     (##wr-sn* we obj t PyObject*-wr-str))))
+
+
+(define (PyObject*-wr-str we obj)
+  (let* ((repr (PyObject_Repr obj))
+         (s (PyObject*/str->string repr)))
+    (if (> (string-length s) 50)
+      (##wr-str we (string-append "\n" s))
+      (##wr-str we (string-append " " s)))))
+
+(define (register-foreign-write-handlers)
+  (define python-subtypes
+    '(PyObject*
+      PyObject*/None
+      PyObject*/bool
+      PyObject*/int
+      PyObject*/float
+      PyObject*/complex
+      PyObject*/bytes
+      PyObject*/bytearray
+      PyObject*/str
+      PyObject*/list
+      PyObject*/dict
+      PyObject*/frozenset
+      PyObject*/set
+      PyObject*/tuple
+      PyObject*/module
+      ))
+  (for-each PyObject*-register-foreign-write-handler python-subtypes))

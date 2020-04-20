@@ -70,6 +70,9 @@
               PyObject*/str->string
               string->PyObject*/str
 
+              ;; Misc
+              register-foreign-write-handlers
+
               ))
 
 ;;;============================================================================

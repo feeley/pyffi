@@ -72,6 +72,9 @@
    PyObject*->object
    object->PyObject*
 
+   ;; Misc
+   register-foreign-write-handlers
+
    )
 
   (include "pyffi.scm"))
