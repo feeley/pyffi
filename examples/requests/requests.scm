@@ -6,14 +6,6 @@
 ;; enable rich python foreign-object representation
 (register-foreign-write-handlers)
 
-(define (PyImport-AddModuleObject s)
-  (PyImport_AddModuleObject
-   (string->PyObject*/str s)))
-
-(define (PyImport-ImportModule s)
-  (PyImport_ImportModule
-   (string->PyObject*/str s)))
-
 (define VENV_PATH
   (getenv "VENV_PATH" #f))
 
@@ -38,7 +30,7 @@
 (Py_SetPythonHome VENV_PATH)
 (Py_Initialize)
 
-(define __main__ (PyImport-AddModuleObject "__main__"))
+(define __main__ (PyImport_AddModule "__main__"))
 (define globals (PyModule_GetDict __main__))
 (define locals (PyDict_New))
 
