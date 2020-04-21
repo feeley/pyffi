@@ -28,6 +28,7 @@
 
               ;; PyImport_*
               PyImport_AddModuleObject
+              PyImport_AddModule
               PyImport_ImportModule
               PyImport_ImportModuleEx
 

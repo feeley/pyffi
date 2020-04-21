@@ -650,6 +650,7 @@ end-of-c-declare
                                                     PyObject*/dict))
 
 (def-api PyImport_AddModuleObject PyObject*/module (PyObject*/str))
+(def-api PyImport_AddModule       PyObject*/module (nonnull-UTF-8-string))
 (def-api PyImport_ImportModule    PyObject*/module (nonnull-UTF-8-string))
 (def-api PyImport_ImportModuleEx  PyObject*/module (nonnull-UTF-8-string
                                                     PyObject*/dict
