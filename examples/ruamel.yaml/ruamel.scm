@@ -51,10 +51,10 @@
 
 ;; You can wrap the operation in a python try/except and print to the console
 ;; or you can let Gambit handle the exception.
-;; Try changing the name of 'test.yaml' to one that does not exist.
+;; Try changing the name of 'in.yaml' to one that does not exist.
 (PyRun_String "
 with open('./out.yaml', 'w') as outs:
-    with open('./test.yaml', 'r') as ins:
+    with open('./in.yaml', 'r') as ins:
         doc = yaml.load(ins)
         yaml.indent(mapping=2, sequence=4, offset=2)
         yaml.dump(doc, outs)
