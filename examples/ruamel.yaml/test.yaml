@@ -1,0 +1,13 @@
+---
+alpha: &a
+  fun: true
+  sad: false
+  happy: true
+
+entries:
+  - <<: *a
+    purpose: cure cancer
+  - <<: *a
+    purpose: cure latency
+  - <<: *a
+    purpose: cure all the things

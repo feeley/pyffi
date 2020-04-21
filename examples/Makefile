@@ -1,4 +1,4 @@
-.PHONY: requests
+.PHONY: requests ruamel.yaml
 
 ifndef LD_PRELOAD
 override LD_PRELOAD = /usr/lib/x86_64-linux-gnu/libpython3.7m.so
@@ -15,3 +15,10 @@ requests:
 		LD_PRELOAD=$(LD_PRELOAD) \
 		VENV_PATH=venv \
 		gsi requests.scm
+
+ruamel.yaml:
+		cd ruamel.yaml && \
+		if [ ! -d "venv" ]; then $(make-venv); fi; \
+		LD_PRELOAD=$(LD_PRELOAD) \
+		VENV_PATH=venv \
+		gsi ruamel.scm
