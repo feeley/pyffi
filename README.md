@@ -36,6 +36,9 @@ After building the library, you should be able to run the examples in the
 `examples` directory. Some examples require the use of `virtualenv`. Make sure
 you have it installed. A `Makefile` is provided to facilitate demonstrations.
 
+`Pyffi` currently only offers a relatively low-level API in sync with the Python
+C API. A higher level API is WIP.
+
 ### Vanilla python
 
 This example works out of the box requiring only built-in python modules. From
@@ -89,14 +92,15 @@ be searched for in the virtualenv.
 
 #### requests
 
-As a first example, let's use the popular `requests` package from PyPI. From the
-`examples` directory:
+As a first example using the low-level API, let's use the popular `requests`
+package from PyPI. From the `examples` directory:
 
 ```
 make requests
 ```
 
-This will set up the correct virtualenvironment
+That will set up the correct virtual environment and execute the code in the
+proper context:
 
 ```
 #<PyObject*/str #2 "{'origin': 'x.x.x.x'}">
@@ -104,3 +108,35 @@ This will set up the correct virtualenvironment
 ```
 
 Again, notice the rich foreign-object information.
+
+### ruamel.yaml
+
+This example showcases another way to evaluate expressions using the low-level
+API. Here, in particular, we are concerned with evaluating a block of Python
+code without returning a value, using the `Py_file_input` [start
+symbol](https://docs.python.org/3/c-api/veryhigh.html). The code showcases file
+IO directly from Python. From the `examples` directory:
+
+```
+make ruamel.yaml
+```
+
+That will set up the correct virtual environment and execute the code in the
+proper context:
+
+```
+out.yaml:
+
+alpha: &a
+  fun: true
+  sad: false
+  happy: true
+
+entries:
+  - <<: *a
+    purpose: cure cancer
+  - <<: *a
+    purpose: cure latency
+  - <<: *a
+    purpose: cure all the things
+```
