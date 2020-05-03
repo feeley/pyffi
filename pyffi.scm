@@ -33,26 +33,37 @@
       (map (lambda (c) (if (eq? c #\.) #\0 c))
            (take (drop (string->list v) 7) 5)))))
 
-  (define python3-version
+  (define python-version
     (let ((v (shell-command "python3 --version" #t)))
       (if (= 0 (car v))
         (version-to-int (cdr v))
         (error "can't find python3"))))
 
-  (define python3-config-embed (##make-parameter #f))
+  (define LIBPL
+    (let ((res (shell-command
+                "python3 -c \"import sysconfig; print(sysconfig.get_config_var('LIBPL'))\"" #t)))
+      (if (= 0 (car res))
+          (call-with-input-string (cdr res)
+                                  (lambda (port) (read-all port read-line)))
+          (error "Could not determine LIBPL."))))
 
-  (define (python3-config-cmd f #!optional (embed (python3-config-embed)))
-    (let ((cmd (string-append "python3-config " f)))
+  (define python-config
+    (string-append "python3 " (car LIBPL) "/python-config.py"))
+
+  (define python-config-embed (##make-parameter #f))
+
+  (define (python-config-cmd opt #!optional (embed (python-config-embed)))
+    (let ((cmd (string-append python-config " " opt)))
       (if embed
         (string-append cmd " --embed")
         cmd)))
 
   ;; The --embed flag only applies to Python >= 3.8
-  (if (>= python3-version 30800)
-    (python3-config-embed #t))
+  (if (>= python-version 30800)
+    (python-config-embed #t))
 
-  (let* ((cflags  (shell-command (python3-config-cmd "--cflags") #t))
-         (ldflags (shell-command (python3-config-cmd "--ldflags") #t)))
+  (let* ((cflags  (shell-command (python-config-cmd "--cflags") #t))
+         (ldflags (shell-command (python-config-cmd "--ldflags") #t)))
     (if (and (= 0 (car cflags))
              (= 0 (car ldflags)))
         `(begin
@@ -62,7 +73,7 @@
            (##meta-info
             ld-options
             ,(call-with-input-string (cdr ldflags) read-line)))
-        (error "can't execute python3-config to find the python library"))))
+        (error "can't execute python-config to find the python library" cflags ldflags))))
 
 (gen-meta-info)
 
