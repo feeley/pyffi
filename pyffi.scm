@@ -25,25 +25,31 @@
 
 ;; Generate meta information to link to Python libs.
 
-(define-macro (gen-meta-info)
-  (let ((sh (shell-command "python3 python-config.py" #t)))
+(define-syntax gen-meta-info
+  (lambda (src)
+    (let ((sh
+           (parameterize ((current-directory
+                           (path-directory (##source-path src))))
+             (shell-command "python3 python-config.py" #t))))
 
-    (if (not (= (car sh) 0))
-        (error "Error executing python3-config.py" sh))
+      (if (not (= (car sh) 0))
+          (error "Error executing python3-config.py" sh))
 
-    (let* ((res (call-with-input-string (cdr sh) (lambda (port)
-                                                   (read-all port read-line))))
-           (pyver   (car res))
-           (ldflags (cadr res))
-           (cflags  (caddr res)))
+      (let* ((res
+              (call-with-input-string (cdr sh)
+                (lambda (port)
+                  (read-all port read-line))))
+             (pyver   (car res))
+             (ldflags (cadr res))
+             (cflags  (caddr res)))
 
-      ;; TODO: Better version handling. Temporary peg to >= 3.
-      (if (not (eq? (string-ref pyver 0) #\3))
-          (error "Pyffi only supports CPython 3 and up." pyver))
+        ;; TODO: Better version handling. Temporary peg to >= 3.
+        (if (not (eq? (string-ref pyver 0) #\3))
+            (error "Pyffi only supports CPython 3 and up." pyver))
 
-      `(begin
-         (##meta-info ld-options ,ldflags)
-         (##meta-info cc-options ,cflags)))))
+        `(begin
+           (##meta-info ld-options ,ldflags)
+           (##meta-info cc-options ,cflags))))))
 
 (gen-meta-info)
 
