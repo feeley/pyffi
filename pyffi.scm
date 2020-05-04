@@ -26,54 +26,24 @@
 ;; Generate meta information to link to Python libs.
 
 (define-macro (gen-meta-info)
+  (let ((sh (shell-command "python3 python-config.py" #t)))
 
-  (define (version-to-int v)
-    (string->number
-     (list->string
-      (map (lambda (c) (if (eq? c #\.) #\0 c))
-           (take (drop (string->list v) 7) 5)))))
+    (if (not (= (car sh) 0))
+        (error "Error executing python3-config.py" sh))
 
-  (define python-version
-    (let ((v (shell-command "python3 --version" #t)))
-      (if (= 0 (car v))
-        (version-to-int (cdr v))
-        (error "can't find python3"))))
+    (let* ((res (call-with-input-string (cdr sh) (lambda (port)
+                                                   (read-all port read-line))))
+           (pyver   (car res))
+           (ldflags (cadr res))
+           (cflags  (caddr res)))
 
-  (define LIBPL
-    (let ((res (shell-command
-                "python3 -c \"import sysconfig; print(sysconfig.get_config_var('LIBPL'))\"" #t)))
-      (if (= 0 (car res))
-          (call-with-input-string (cdr res)
-                                  (lambda (port) (read-all port read-line)))
-          (error "Could not determine LIBPL."))))
+      ;; TODO: Better version handling. Temporary peg to >= 3.
+      (if (not (eq? (string-ref pyver 0) #\3))
+          (error "Pyffi only supports CPython 3 and up." pyver))
 
-  (define python-config
-    (string-append "python3 " (car LIBPL) "/python-config.py"))
-
-  (define python-config-embed (##make-parameter #f))
-
-  (define (python-config-cmd opt #!optional (embed (python-config-embed)))
-    (let ((cmd (string-append python-config " " opt)))
-      (if embed
-        (string-append cmd " --embed")
-        cmd)))
-
-  ;; The --embed flag only applies to Python >= 3.8
-  (if (>= python-version 30800)
-    (python-config-embed #t))
-
-  (let* ((cflags  (shell-command (python-config-cmd "--cflags") #t))
-         (ldflags (shell-command (python-config-cmd "--ldflags") #t)))
-    (if (and (= 0 (car cflags))
-             (= 0 (car ldflags)))
-        `(begin
-           (##meta-info
-            cc-options
-            ,(call-with-input-string (cdr cflags) read-line))
-           (##meta-info
-            ld-options
-            ,(call-with-input-string (cdr ldflags) read-line)))
-        (error "can't execute python-config to find the python library" cflags ldflags))))
+      `(begin
+         (##meta-info ld-options ,ldflags)
+         (##meta-info cc-options ,cflags)))))
 
 (gen-meta-info)
 
