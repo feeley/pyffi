@@ -673,7 +673,7 @@ end-of-c-declare
 
 (define PyObject*-type-name
   (c-lambda (_PyObject*) nonnull-UTF-8-string
-    "___return(___arg1->ob_type->tp_name);"))
+    "___return(___CAST(char*,___arg1->ob_type->tp_name));"))
 
 ;; Use for debugging
 (define _Py_REFCNT
