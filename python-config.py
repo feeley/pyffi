@@ -6,6 +6,13 @@ import sysconfig
 getvar = sysconfig.get_config_var
 pyver = getvar('VERSION')
 
+# TODO: Add more compilers and act upon the information.
+cc = getvar('CC')
+if "gcc" in cc:
+    pycc = "gcc"
+if "clang" in cc:
+    pycc = "clang"
+
 ldflags = ['-lpython' + pyver + sys.abiflags]
 ldflags += getvar('LIBS').split()
 ldflags += getvar('SYSLIBS').split()
@@ -21,5 +28,6 @@ cflags.extend(getvar('CFLAGS').split())
 
 # The output is parsed by gsc, one line at a time:
 print(pyver)
+print(pycc)
 print(' '.join(ldflags))
 print(' '.join(cflags))

@@ -39,9 +39,11 @@
               (call-with-input-string (cdr sh)
                 (lambda (port)
                   (read-all port read-line))))
-             (pyver   (car res))
-             (ldflags (cadr res))
-             (cflags  (caddr res)))
+             (pyver   (list-ref res 0))
+             ;; TODO: Act on Python C compiler?
+             (pycc    (list-ref res 1))
+             (ldflags (list-ref res 2))
+             (cflags  (list-ref res 3)))
 
         ;; TODO: Better version handling. Temporary peg to >= 3.
         (if (not (eq? (string-ref pyver 0) #\3))
