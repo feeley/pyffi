@@ -11,7 +11,7 @@
 (##supply-module github.com/feeley/pyffi)
 
 (##namespace ("github.com/feeley/pyffi#"))  ;; in github.com/feeley/pyffi#
-(##include "~~lib/_prim#.scm")              ;; map fx+ to ##fx+, etc
+(##include "~~lib/gambit/prim/prim#.scm")   ;; map fx+ to ##fx+, etc
 (##include "~~lib/_gambit#.scm")            ;; for macro-check-procedure,
                                             ;; macro-absent-obj, etc
 
