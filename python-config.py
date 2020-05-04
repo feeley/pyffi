@@ -7,10 +7,10 @@ getvar = sysconfig.get_config_var
 pyver = getvar('VERSION')
 
 # TODO: Add more compilers and act upon the information.
-cc = getvar('CC')
-if "gcc" in cc:
+pycc = getvar('CC')
+if "gcc" in pycc:
     pycc = "gcc"
-if "clang" in cc:
+if "clang" in pycc:
     pycc = "clang"
 
 ldflags = ['-lpython' + pyver + sys.abiflags]
@@ -25,6 +25,11 @@ if not getvar('PYTHONFRAMEWORK'):
 cflags = ['-I' + sysconfig.get_path('include'),
           '-I' + sysconfig.get_path('platinclude')]
 cflags.extend(getvar('CFLAGS').split())
+
+# Set @rpath on macOS & clang
+PYTHONFRAMEWORKPREFIX = getvar('PYTHONFRAMEWORKPREFIX')
+if PYTHONFRAMEWORKPREFIX is not '' and pycc is 'clang':
+    cflags.append(f"-rpath {PYTHONFRAMEWORKPREFIX}")
 
 # The output is parsed by gsc, one line at a time:
 print(pyver)
