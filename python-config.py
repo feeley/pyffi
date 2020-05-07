@@ -28,7 +28,7 @@ cflags.extend(getvar('CFLAGS').split())
 
 # Set @rpath on macOS & clang
 PYTHONFRAMEWORKPREFIX = getvar('PYTHONFRAMEWORKPREFIX')
-if PYTHONFRAMEWORKPREFIX is not '' and pycc is 'clang':
+if PYTHONFRAMEWORKPREFIX != '' and pycc == 'clang':
     cflags.append(f"-rpath {PYTHONFRAMEWORKPREFIX}")
 
 # The output is parsed by gsc, one line at a time:
