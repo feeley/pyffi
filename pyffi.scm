@@ -27,6 +27,13 @@
 
 (define-syntax gen-meta-info
   (lambda (src)
+    (define (string-strip-trailing-return! str)
+      (if (string? str)
+          (let ((newlen (- (string-length str) 1)))
+            (if (char=? #\return (string-ref str newlen))
+                (string-shrink! str newlen))))
+      str)
+
     (let ((sh
            (parameterize ((current-directory
                            (path-directory (##source-path src))))
@@ -38,7 +45,7 @@
       (let* ((res
               (call-with-input-string (cdr sh)
                 (lambda (port)
-                  (read-all port read-line))))
+                  (read-all port (lambda (p) (string-strip-trailing-return! (read-line p)))))))
              (pyver   (list-ref res 0))
              ;; TODO: Act on Python C compiler?
              (pycc    (list-ref res 1))
@@ -320,12 +327,12 @@ ___SCMOBJ PYOBJECTPTR_to_SCMOBJ(PyObjectPtr src, ___SCMOBJ *dst, int arg_num) {
 
   PYOBJECTPTR_REFCNT_SHOW(src, "PYOBJECTPTR_to_SCMOBJ");
 
-  return ___NONNULLPOINTER_to_SCMOBJ(___PSTATE,
-                                     src,
-                                     tag,
-                                     release_PyObjectPtr,
-                                     dst,
-                                     arg_num);
+  return ___EXT(___NONNULLPOINTER_to_SCMOBJ)(___PSTATE,
+                                             src,
+                                             tag,
+                                             release_PyObjectPtr,
+                                             dst,
+                                             arg_num);
 }
 
 ___SCMOBJ PYOBJECTPTR_OWN_to_SCMOBJ(PyObjectPtr src, ___SCMOBJ *dst, int arg_num) {
@@ -340,7 +347,7 @@ ___SCMOBJ SCMOBJ_to_PYOBJECTPTR(___SCMOBJ src, void **dst, int arg_num) {
   ___PSGET
 
 #define CONVERT_TO_NONNULLPOINTER(tag) \
-  ___SCMOBJ_to_NONNULLPOINTER(___PSP src, dst, tag, arg_num)
+  ___EXT(___SCMOBJ_to_NONNULLPOINTER)(___PSP src, dst, tag, arg_num)
 
 #define TRY_CONVERT_TO_NONNULLPOINTER(tag) \
   if (CONVERT_TO_NONNULLPOINTER(tag) == ___FIX(___NO_ERR)) \
@@ -431,12 +438,12 @@ ___SCMOBJ PYOBJECTPTR" _SUBTYPE "_to_SCMOBJ(PyObjectPtr_" subtype " src, ___SCMO
 
   PYOBJECTPTR_REFCNT_SHOW(src, \"PYOBJECTPTR" _SUBTYPE "_to_SCMOBJ\");
 
-  return ___NONNULLPOINTER_to_SCMOBJ(___PSTATE,
-                                     src,
-                                     " tag ",
-                                     release_PyObjectPtr,
-                                     dst,
-                                     arg_num);
+  return ___EXT(___NONNULLPOINTER_to_SCMOBJ)(___PSTATE,
+                                             src,
+                                             " tag ",
+                                             release_PyObjectPtr,
+                                             dst,
+                                             arg_num);
 }
 
 ___SCMOBJ PYOBJECTPTR_OWN" _SUBTYPE "_to_SCMOBJ(PyObjectPtr_" subtype " src, ___SCMOBJ *dst, int arg_num) {
@@ -446,21 +453,21 @@ ___SCMOBJ PYOBJECTPTR_OWN" _SUBTYPE "_to_SCMOBJ(PyObjectPtr_" subtype " src, ___
 
   PYOBJECTPTR_INCREF(src, \"PYOBJECTPTR_OWN" _SUBTYPE "_to_SCMOBJ\");
 
-  return ___NONNULLPOINTER_to_SCMOBJ(___PSTATE,
-                                     src,
-                                     " tag ",
-                                     release_PyObjectPtr,
-                                     dst,
-                                     arg_num);
+  return ___EXT(___NONNULLPOINTER_to_SCMOBJ)(___PSTATE,
+                                             src,
+                                             " tag ",
+                                             release_PyObjectPtr,
+                                             dst,
+                                             arg_num);
 }
 
 ___SCMOBJ SCMOBJ_to_PYOBJECTPTR" _SUBTYPE "(___SCMOBJ src, void **dst, int arg_num) {
 
-  return ___SCMOBJ_to_NONNULLPOINTER(___PSA(___PSTATE)
-                                     src,
-                                     dst,
-                                     " tag ",
-                                     arg_num);
+  return ___EXT(___SCMOBJ_to_NONNULLPOINTER)(___PSA(___PSTATE)
+                                             src,
+                                             dst,
+                                             " tag ",
+                                             arg_num);
 }
 
 #endif
