@@ -1,26 +1,35 @@
+# python-config.py
+#
+# This script tries to find the correct ld and cflags through python3
+# introspection. See CPython's Misc/python-config.in and configure.ac for
+# details.
+
+
 import sys
 import sysconfig
 import platform
 import pathlib
 
+
 class MSVC:
     def __init__(self):
-        self.name = 'cl'
+        self.name = "cl"
         self.cflags = []
-        self.ldflags = ['-link']
+        self.ldflags = ["-link"]
 
     def add_library_path(self, path):
-        self.ldflags.append('-LIBPATH:"{}"'.format(path))
+        self.ldflags.append(f'-LIBPATH:"{path}"')
 
     def add_library(self, lib):
-        self.ldflags.append(lib+'.lib')
+        self.ldflags.append(lib + ".lib")
 
     def add_libraries(self, libs):
         for lib in libs:
             self.add_library(lib)
 
     def add_include_path(self, path):
-        self.cflags.append('-I"{}"'.format(path))
+        self.cflags.append(f'-I"{path}"')
+
 
 class GnuLikeCompiler:
     def __init__(self, name):
@@ -29,105 +38,118 @@ class GnuLikeCompiler:
         self.ldflags = []
 
     def add_library_path(self, path):
-        self.ldflags.append('-L "{}"'.format(path))
+        self.ldflags.append(f'-L"{path}"')
 
     def add_library(self, lib):
-        self.ldflags.append('-l{}'.format(lib))
+        self.ldflags.append(f"-l{lib}")
 
     def add_libraries(self, libs):
         for lib in libs:
             self.add_library(lib)
 
     def add_include_path(self, path):
-        self.cflags.append('-I"{}"'.format(path))
+        self.cflags.append(f'-I"{path}"')
 
 
-# See CPython's Misc/python-config.in for details.
 getvar = sysconfig.get_config_var
-def extend_array_with_config_var(array, name):
-    value = getvar(name)
-    if value is not None:
-        array.extend(value.split())
+
+
+def extend_with_config_var(array, name):
+    var = getvar(name)
+    if var is not None:
+        array.extend(var.split())
+
 
 def find_compiler():
-    pycc_cmd = getvar('CC')
-    if pycc_cmd is None:
-        pycompiler = platform.python_compiler().upper()
-        if 'MSC' in pycompiler:
+    CC = getvar("CC").lower()
+    if CC is None:
+        pycompiler = platform.python_compiler().lower()
+        if "msc" in pycompiler:
             compiler = MSVC()
-        elif 'CLANG' in pycompiler:
-            compiler = GnuLikeCompiler('clang')
-        elif 'GCC' in pycompiler:
-            compiler = GnuLikeCompiler('gcc')
+        elif "clang" in pycompiler:
+            compiler = GnuLikeCompiler("clang")
+        elif "gcc" in pycompiler:
+            compiler = GnuLikeCompiler("gcc")
         else:
-            RuntimeError('Unknown compiler')
+            RuntimeError("Unknown compiler")
     else:
-        pycc_cmd = pycc_cmd.split()
-        if 'gcc' in pycc_cmd:
-            pycc = 'gcc'
-        elif 'clang' in pycc_cmd:
-            pycc = 'clang'
+        if "clang" in CC:
+            compiler = GnuLikeCompiler("clang")
+        elif "gcc" in CC:
+            compiler = GnuLikeCompiler("gcc")
         else:
-            raise RuntimeError('Unknown compiler')
-        compiler = GnuLikeCompiler(pycc)
+            raise RuntimeError("Unknown compiler")
     return compiler
 
 
-pyver = getvar('VERSION')
-current_system = platform.system()
-if current_system == 'Windows':
-    compiler = find_compiler()
+# Detect the platform/system
 
-    libdir = getvar('LIBDIR')
-    if libdir is None:
-        # Assume libpath is %PYTHONPREFIX%\\libs on Windows
-        prefix = pathlib.Path(sysconfig.get_config_var('prefix'))
-        libs = prefix / 'libs'
-        if not libs.exists():
-            raise RuntimeError('Unable to find python C libraries')
-        libdir = str(libs)
-elif current_system == 'Linux' or current_system == 'Darwin':
-    compiler = find_compiler()
-    libdir = sysconfig.get_config_var('LIBDIR')
-else:
-    raise RuntimeError('Unsupported system')
+system = platform.system().lower()
+if system not in ["linux", "darwin", "windows"]:
+    raise RuntimeError("Unsupported system")
 
-compiler.add_library_path(libdir)
 
-# Getting the abiflags
+# Detect the compiler
+
+compiler = find_compiler()
+
+
+# Get common Python configuration variables
+
+VERSION = getvar("VERSION")
+LIBDIR = getvar("LIBDIR")
+CONFINCLUDEDIR = getvar("CONFINCLUDEDIR")
 try:
     abiflags = sys.abiflags
-except:
-    abiflags = getvar('abiflags') or ''
+except Exception:
+    abiflags = getvar("abiflags") or ""
 
-compiler.add_library(f'python{pyver}{abiflags}')
-extend_array_with_config_var(compiler.ldflags, 'LIBS')
-extend_array_with_config_var(compiler.ldflags, 'SYSLIBS')
 
-if not getvar('Py_ENABLE_SHARED'):
-    libpath = getvar('LIBPL')
-    if libpath is not None:
-        compiler.add_library_path(libpath)
+# Configure system specific variables
 
-if not getvar('PYTHONFRAMEWORK'):
-    extend_array_with_config_var(compiler.ldflags, 'LINKFORSHARED')
+if system == "windows" and LIBDIR is None:
+    # Assume libpath is %PYTHONPREFIX%\\libs on Windows
+    prefix = pathlib.Path(sysconfig.get_config_var("prefix"))
+    libs = prefix / "libs"
+    if not libs.exists():
+        raise RuntimeError("Unable to find python C libraries")
+    LIBDIR = str(libs)
 
-# NOTE: flags may be dupplicate
-compiler.add_include_path(sysconfig.get_path('include'))
-compiler.add_include_path(sysconfig.get_path('platinclude'))
-CONFINCLUDEDIR=getvar('CONFINCLUDEDIR')
-if CONFINCLUDEDIR is not None:
-    pyld = f'python{pyver}{abiflags}'
-    compiler.add_include_path(CONFINCLUDEDIR + '/' + pyld)
-extend_array_with_config_var(compiler.cflags, 'CFLAGS')
+elif system == "darwin":
+    # Set @rpath when using clang
+    PYTHONFRAMEWORKPREFIX = getvar("PYTHONFRAMEWORKPREFIX")
+    if PYTHONFRAMEWORKPREFIX != "" and compiler.name == "clang":
+        compiler.cflags.append(f"-rpath {PYTHONFRAMEWORKPREFIX}")
 
-# Set @rpath on macOS & clang
-PYTHONFRAMEWORKPREFIX = getvar('PYTHONFRAMEWORKPREFIX')
-if PYTHONFRAMEWORKPREFIX != '' and compiler.name == 'clang':
-    compiler.cflags.append(f"-rpath {PYTHONFRAMEWORKPREFIX}")
+
+# Configure ldflags
+
+compiler.add_library_path(LIBDIR)
+compiler.add_library(f"python{VERSION}{abiflags}")
+extend_with_config_var(compiler.ldflags, "LIBS")
+extend_with_config_var(compiler.ldflags, "SYSLIBS")
+
+if not getvar("Py_ENABLE_SHARED"):
+    LIBPL = getvar("LIBPL")
+    if LIBPL is not None:
+        compiler.add_library_path(LIBPL)
+
+if not getvar("PYTHONFRAMEWORK"):
+    extend_with_config_var(compiler.ldflags, "LINKFORSHARED")
+
+
+# Configure cflags
+
+compiler.add_include_path(sysconfig.get_path("include"))
+compiler.add_include_path(sysconfig.get_path("platinclude"))
+if CONFINCLUDEDIR is not None:  # Can be None on Windows
+    compiler.add_include_path(CONFINCLUDEDIR + f"/python{VERSION}{abiflags}")
+extend_with_config_var(compiler.cflags, "CFLAGS")
+
 
 # The output is parsed by gsc, one line at a time:
-print(pyver)
+
+print(VERSION)
 print(compiler.name)
-print(' '.join(compiler.ldflags))
-print(' '.join(compiler.cflags))
+print(" ".join(compiler.ldflags))
+print(" ".join(compiler.cflags))
