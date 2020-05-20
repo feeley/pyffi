@@ -112,8 +112,13 @@ if not getvar('Py_ENABLE_SHARED'):
 if not getvar('PYTHONFRAMEWORK'):
     extend_array_with_config_var(compiler.ldflags, 'LINKFORSHARED')
 
+# NOTE: flags may be dupplicate
 compiler.add_include_path(sysconfig.get_path('include'))
 compiler.add_include_path(sysconfig.get_path('platinclude'))
+CONFINCLUDEDIR=getvar('CONFINCLUDEDIR')
+if CONFINCLUDEDIR is not None:
+    pyld = f'python{pyver}{abiflags}'
+    compiler.add_include_path(CONFINCLUDEDIR + '/' + pyld)
 extend_array_with_config_var(compiler.cflags, 'CFLAGS')
 
 # Set @rpath on macOS & clang
