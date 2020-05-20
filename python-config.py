@@ -61,8 +61,15 @@ def extend_with_config_var(array, name):
 
 
 def find_compiler():
-    CC = getvar("CC").lower()
-    if CC is None:
+    try:
+        CC = getvar("CC").lower()
+        if "clang" in CC:
+            compiler = GnuLikeCompiler("clang")
+        elif "gcc" in CC:
+            compiler = GnuLikeCompiler("gcc")
+        else:
+            raise RuntimeError("Unknown compiler")
+    except Exception:
         pycompiler = platform.python_compiler().lower()
         if "msc" in pycompiler:
             compiler = MSVC()
@@ -71,14 +78,8 @@ def find_compiler():
         elif "gcc" in pycompiler:
             compiler = GnuLikeCompiler("gcc")
         else:
-            RuntimeError("Unknown compiler")
-    else:
-        if "clang" in CC:
-            compiler = GnuLikeCompiler("clang")
-        elif "gcc" in CC:
-            compiler = GnuLikeCompiler("gcc")
-        else:
             raise RuntimeError("Unknown compiler")
+
     return compiler
 
 
