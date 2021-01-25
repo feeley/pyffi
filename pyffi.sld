@@ -33,6 +33,7 @@
 
    ;; PyDict_*
    PyDict_New
+   PyDict_SetItemString
 
    ;; PyList_*
    PyList_New
@@ -75,6 +76,15 @@
 
    ;; Misc
    register-foreign-write-handlers
+   venv-path->PYTHONPATH
+   pip-install
+   pip
+   py:__main__
+   py:globals
+   py:locals
+   PYTHONPATH
+   py
+   py-import
 
    )
 

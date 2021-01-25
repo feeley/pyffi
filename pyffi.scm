@@ -14,6 +14,7 @@
 (##include "~~lib/gambit/prim/prim#.scm")   ;; map fx+ to ##fx+, etc
 (##include "~~lib/_gambit#.scm")            ;; for macro-check-procedure,
                                             ;; macro-absent-obj, etc
+(##include "~~lib/gambit#.scm")             ;; shell-command
 
 (##include "pyffi#.scm")                    ;; correctly map pyffi ops
 
@@ -50,13 +51,16 @@
              ;; TODO: Act on Python C compiler?
              (pycc    (list-ref res 1))
              (ldflags (list-ref res 2))
-             (cflags  (list-ref res 3)))
+             (cflags  (list-ref res 3))
+             (libdir  (list-ref res 4)))
 
         ;; TODO: Better version handling. Temporary peg to >= 3.
         (if (not (eq? (string-ref pyver 0) #\3))
             (error "Pyffi only supports CPython 3 and up." pyver))
 
         `(begin
+           (define PYVER ,pyver)
+           (define LIBDIR ,libdir)
            (##meta-info ld-options ,ldflags)
            (##meta-info cc-options ,cflags))))))
 
@@ -655,6 +659,9 @@ end-of-c-declare
 
 (def-api PyModule_GetDict         PyObject*/dict   (PyObject*/module))
 (def-api PyDict_New               PyObject*/dict   ())
+(def-api PyDict_SetItemString     int              (PyObject*/dict
+                                                    nonnull-UTF-8-string
+                                                    PyObject*))
 
 (def-api PyList_New               PyObject*/list   (int))
 
@@ -1116,3 +1123,80 @@ if (!___VECTORP(src)) {
       PyObject*/module
       ))
   (for-each PyObject*-register-foreign-write-handler python-subtypes))
+
+;; TODO: Make more robust.
+;; Assumes a proper virtualenv, created with virtualenv, not python -m venv
+(define (venv-path->PYTHONPATH p)
+  ;; PYVER is, for example, "3.7" and we need "37"
+  (let ((PYVER-no-dot
+         (list->string (list (string-ref PYVER 0)
+                             (string-ref PYVER 2)))))
+    (string-append
+     "''"
+     ":" (string-append LIBDIR "/python" PYVER-no-dot ".zip")
+     ":" (string-append LIBDIR "/python" PYVER)
+     ":" (string-append LIBDIR "/python" PYVER "/lib-dynload")
+     ;; per venv site-packages
+     ":" (string-append p "/lib/python" PYVER "/site-packages"))))
+
+
+(define-macro (pip . args)
+  (define (pip* args)
+    (let ((home (string-append (user-info-home (user-info (user-name))) "/.gambit_venv")))
+      (shell-command (string-append home "/bin/pip" args))))
+  (let lp ((sargs (map symbol->string args))
+           (out ""))
+    (if (eq? (cdr sargs) '())
+        (pip* (string-append out " " (car sargs)))
+        (lp (cdr sargs) (string-append out " " (car sargs))))))
+
+(define (py s)
+  (PyRun_String s
+                Py_eval_input
+                py:globals
+                py:locals))
+
+;; TODO: support more than "import foo"
+(define (py-import m)
+  (let ((module (PyImport_ImportModule m)))
+    ;; Set the module to be accessible inside the __main__ dict.
+    (PyDict_SetItemString py:globals m module)))
+
+;; (define (@py obj . args)
+;;   (PyObject_CallMethod ))
+
+;;;----------------------------------------------------------------------------
+
+;; Side effects
+
+(define VIRTUAL_ENV #f)
+(define PYTHONPATH #f)
+(define py:__main__ #f)
+(define py:globals #f)
+(define py:locals #f)
+
+;; NOTE: Quick hack
+(define (setup-python)
+  (set! VIRTUAL_ENV
+    (let ((default (string-append (user-info-home (user-info (user-name)))
+                                  "/.gambit_venv")))
+      (getenv "VIRTUAL_ENV" default)))
+
+  (set! PYTHONPATH
+    (venv-path->PYTHONPATH VIRTUAL_ENV))
+
+  (Py_SetPath PYTHONPATH)
+  (Py_SetPythonHome VIRTUAL_ENV)
+  (Py_Initialize)
+
+  (set! py:__main__ (PyImport_AddModule "__main__"))
+  (set! py:globals (PyModule_GetDict py:__main__))
+  (set! py:locals (PyDict_New))
+  )
+
+
+;; Foreign write handlers are registered as a side-effect
+;; at module import time for convenience of pretty-printing.
+(register-foreign-write-handlers)
+
+(setup-python)
