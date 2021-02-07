@@ -80,15 +80,14 @@
 
               ;; Misc
               register-foreign-write-handlers
-              venv-path->PYTHONPATH
               pip-install
               pip
-              py:__main__
-              py:globals
-              py:locals
-              PYTHONPATH
               py
               py-import
+              current-python-interpreter
+              six.infix
+              convert
+              python
 
               ))
 

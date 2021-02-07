@@ -19,7 +19,7 @@
 (##include "pyffi#.scm")                    ;; correctly map pyffi ops
 
 (declare (extended-bindings)) ;; ##fx+ is bound to fixnum addition, etc
-(declare (not safe))          ;; claim code has no type errors
+;; (declare (not safe))          ;; claim code has no type errors
 (declare (block))             ;; claim no global is assigned
 
 ;;;----------------------------------------------------------------------------
@@ -682,6 +682,13 @@ end-of-c-declare
 (def-api Py_SetPath               void             (nonnull-wchar_t-string))
 (def-api Py_SetPythonHome         void             (nonnull-wchar_t-string))
 
+;; NOTE: Maybe migrate to `def-api'
+;; TODO: Sub-interpreters
+(c-define-type PyThreadState "PyThreadState")
+(c-define-type PyThreadState* (nonnull-pointer PyThreadState))
+(define Py_NewInterpreter
+  (c-lambda () PyThreadState* "Py_NewInterpreter"))
+
 ;; Get object type from struct field, no new reference.
 (define PyObject*-type
   (c-lambda (_PyObject*) PyTypeObject*
@@ -1150,53 +1157,46 @@ if (!___VECTORP(src)) {
         (pip* (string-append out " " (car sargs)))
         (lp (cdr sargs) (string-append out " " (car sargs))))))
 
-(define (py s)
-  (PyRun_String s
-                Py_eval_input
-                py:globals
-                py:locals))
+(define default-virtual-env
+  (make-parameter
+   (let ((default (string-append (user-info-home (user-info (user-name))) "/.gambit_venv")))
+     (getenv "VIRTUAL_ENV" default))))
+
+(define-type python-interpreter virtual-env pythonpath __main__ globals)
+
+(define (make-main-python-interpreter #!optional (virtual-env (default-virtual-env)))
+  (let* ((VIRTUAL_ENV virtual-env)
+         (PYTHONPATH (venv-path->PYTHONPATH VIRTUAL_ENV)))
+
+    (Py_SetPath PYTHONPATH)
+    (Py_SetPythonHome VIRTUAL_ENV)
+    (Py_Initialize)
+
+    (let* ((__main__ (PyImport_AddModule "__main__"))
+           (globals (PyModule_GetDict __main__)))
+      (make-python-interpreter VIRTUAL_ENV PYTHONPATH __main__ globals))))
 
 ;; TODO: support more than "import foo"
 (define (py-import m)
-  (let ((module (PyImport_ImportModule m)))
+  (let ((python-interpreter (current-python-interpreter))
+        (module (PyImport_ImportModule m)))
     ;; Set the module to be accessible inside the __main__ dict.
-    (PyDict_SetItemString py:globals m module)))
+    (PyDict_SetItemString (python-interpreter-__main__ python-interpreter) m module)))
 
-;; (define (@py obj . args)
-;;   (PyObject_CallMethod ))
+(define (py s)
+  (let ((python-interpreter (current-python-interpreter)))
+    (PyRun_String s
+                  Py_eval_input
+                  (python-interpreter-globals python-interpreter)
+                  (python-interpreter-globals python-interpreter))))
 
 ;;;----------------------------------------------------------------------------
 
 ;; Side effects
 
-(define VIRTUAL_ENV #f)
-(define PYTHONPATH #f)
-(define py:__main__ #f)
-(define py:globals #f)
-(define py:locals #f)
-
-;; NOTE: Quick hack
-(define (setup-python)
-  (set! VIRTUAL_ENV
-    (let ((default (string-append (user-info-home (user-info (user-name)))
-                                  "/.gambit_venv")))
-      (getenv "VIRTUAL_ENV" default)))
-
-  (set! PYTHONPATH
-    (venv-path->PYTHONPATH VIRTUAL_ENV))
-
-  (Py_SetPath PYTHONPATH)
-  (Py_SetPythonHome VIRTUAL_ENV)
-  (Py_Initialize)
-
-  (set! py:__main__ (PyImport_AddModule "__main__"))
-  (set! py:globals (PyModule_GetDict py:__main__))
-  (set! py:locals (PyDict_New))
-  )
-
+(define main-python-interpreter (make-main-python-interpreter))
+(define current-python-interpreter (make-parameter main-python-interpreter))
 
 ;; Foreign write handlers are registered as a side-effect
 ;; at module import time for convenience of pretty-printing.
 (register-foreign-write-handlers)
-
-(setup-python)
