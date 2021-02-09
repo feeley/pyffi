@@ -67,6 +67,26 @@
 
 (define-syntax six.infix
   (lambda (src)
-    (let* ((tree (convert (##desourcify src) python))
-           (code (call-with-output-string (lambda (p) (print port: p tree)))))
-      `(py ,code))))
+
+    (define (tree-to-string tree)
+      (call-with-output-string (lambda (p) (print port: p tree))))
+
+    (define (else-handler sexp)
+      (let* ((tree (convert sexp python))
+             (code (tree-to-string tree)))
+        `(py ,code)))
+
+    (define (import-handler sexp)
+      ;; NOTE: convert expects (list foo bar . baz)
+      ;;  and we choose six.infix as car for continuity
+      (let ((module (tree-to-string (convert (list 'six.infix (cadadr sexp)) python))))
+        `(py-import ,module)))
+
+    ;; TODO: from-import-handler
+
+    (let ((sexp (##desourcify src)))
+      (case (caadr sexp)
+        ((six.import)
+         (import-handler sexp))
+        (else
+         (else-handler sexp))))))
