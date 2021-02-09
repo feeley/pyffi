@@ -1178,10 +1178,11 @@ if (!___VECTORP(src)) {
 
 ;; TODO: support more than "import foo"
 (define (py-import m)
-  (let ((python-interpreter (current-python-interpreter))
-        (module (PyImport_ImportModule m)))
+  (let* ((python-interpreter (current-python-interpreter))
+         (module (PyImport_ImportModule m))
+         (dict (PyModule_GetDict (python-interpreter-__main__ python-interpreter))))
     ;; Set the module to be accessible inside the __main__ dict.
-    (PyDict_SetItemString (python-interpreter-__main__ python-interpreter) m module)))
+    (PyDict_SetItemString dict m module)))
 
 (define (py s)
   (let ((python-interpreter (current-python-interpreter)))
