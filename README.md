@@ -6,7 +6,11 @@ Please build using Gambit@HEAD.**
 
 **Programmers are encouraged to read the Python C API specification.**
 
+**The following instructions are written for pyffi developers. Users beware.**
+
 ## Build instructions
+
+NOTE: Make sure your `~/.gambit_userlib/github.com/feeley/pyffi` directory is clean of any prior artifacts (just remove it and re-create the symlink).
 
 The library is compatible with Gambit's primitive module system and the R7RS
 libraries.
@@ -14,7 +18,7 @@ libraries.
 Assuming you
 - have compiled Gambit@HEAD,
 - are developing Gambit modules in `/home/me/dev/gambit-modules`,
-- have Python 3.7 _with development sources_ available,
+- have Python 3.x _with development sources_ available,
 
 these instructions should allow you to build `pyffi`:
 
@@ -83,7 +87,7 @@ environment. Here we assume that you have installed `virtualenv` (not `python3
 
 A lot of third-party libraries you will install in virtualenvs will require
 linking with `libpython`. The makefile sets `LD_PRELOAD` to the default
-python3.7 shared library path on Debian 10. You will need to provide your own
+python3.x shared library path on Debian 10. You will need to provide your own
 `LD_PRELOAD` if that default is not correct for your system.
 
 The makefile also sets the `VENV_PATH` environment variable. This is required to
