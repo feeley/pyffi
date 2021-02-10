@@ -2,7 +2,8 @@
 
 ;;; File: "pyffi.scm"
 
-;;; Copyright (c) 2020 by Marc Feeley, All Rights Reserved.
+;;; Copyright (c) 2020-2021 by Marc Feeley, All Rights Reserved.
+;;; Copyright (c) 2020-2021 by Marc-André Bélanger, All Rights Reserved.
 
 ;;;============================================================================
 
@@ -97,8 +98,10 @@ do { \
 
 #define PYOBJECTPTR_REFCNT_SHOW(obj, where) \
 do { \
-  printf(where " REFCNT(%p)=%ld\n", obj, Py_REFCNT(obj)); \
-  fflush(stdout); \
+  if (obj != NULL) { \
+    printf(where " REFCNT(%p)=%ld\n", obj, Py_REFCNT(obj)); \
+    fflush(stdout); \
+  } \
 } while (0)
 
 #else
@@ -144,6 +147,8 @@ end-of-c-declare
                  PyObject*/set
                  PyObject*/tuple
                  PyObject*/module
+                 PyObject*/type
+                 PyObject*/function
                  )))
 
 (c-define-type PyObject*
@@ -194,6 +199,7 @@ end-of-c-declare
 (define-python-subtype-type "tuple")
 (define-python-subtype-type "module")
 (define-python-subtype-type "type")
+(define-python-subtype-type "function")
 
 ;;;----------------------------------------------------------------------------
 
@@ -327,6 +333,18 @@ ___SCMOBJ PYOBJECTPTR_to_SCMOBJ(PyObjectPtr src, ___SCMOBJ *dst, int arg_num) {
   else
 #endif
 
+#ifdef ___C_TAG_PyObject_2a__2f_type
+  if (PyType_CheckExact(src))
+    tag = ___C_TAG_PyObject_2a__2f_type;
+  else
+#endif
+
+#ifdef ___C_TAG_PyObject_2a__2f_function
+  if (PyFunction_Check(src))
+    tag = ___C_TAG_PyObject_2a__2f_function;
+  else
+#endif
+
   tag = ___C_TAG_PyObject_2a_;
 
   PYOBJECTPTR_REFCNT_SHOW(src, "PYOBJECTPTR_to_SCMOBJ");
@@ -413,6 +431,14 @@ ___SCMOBJ SCMOBJ_to_PYOBJECTPTR(___SCMOBJ src, void **dst, int arg_num) {
   TRY_CONVERT_TO_NONNULLPOINTER(___C_TAG_PyObject_2a__2f_module);
 #endif
 
+#ifdef ___C_TAG_PyObject_2a__2f_type
+  TRY_CONVERT_TO_NONNULLPOINTER(___C_TAG_PyObject_2a__2f_type);
+#endif
+
+#ifdef ___C_TAG_PyObject_2a__2f_function
+  TRY_CONVERT_TO_NONNULLPOINTER(___C_TAG_PyObject_2a__2f_function);
+#endif
+
   return CONVERT_TO_NONNULLPOINTER(___C_TAG_PyObject_2a_);
 }
 
@@ -494,6 +520,8 @@ ___SCMOBJ SCMOBJ_to_PYOBJECTPTR" _SUBTYPE "(___SCMOBJ src, void **dst, int arg_n
 (define-subtype-converters "set"       "PyAnySet_CheckExact(src) && !PyFrozenSet_CheckExact(src)")
 (define-subtype-converters "tuple"     "PyTuple_CheckExact(src)")
 (define-subtype-converters "module"    "PyModule_CheckExact(src)")
+(define-subtype-converters "type"      "PyType_CheckExact(src)")
+(define-subtype-converters "function"  "PyFunction_Check(src)")
 
 ;;;----------------------------------------------------------------------------
 
@@ -658,7 +686,10 @@ end-of-c-declare
                                                     PyObject*/list))
 
 (def-api PyModule_GetDict         PyObject*/dict   (PyObject*/module))
+
 (def-api PyDict_New               PyObject*/dict   ())
+(def-api PyDict_GetItemString     PyObject*        (PyObject*/dict
+                                                    nonnull-UTF-8-string))
 (def-api PyDict_SetItemString     int              (PyObject*/dict
                                                     nonnull-UTF-8-string
                                                     PyObject*))
@@ -668,6 +699,8 @@ end-of-c-declare
 (def-api PyTuple_GetItem          PyObject*        (PyObject*/tuple
                                                     ssize_t))
 
+(def-api PyObject_CallObject      PyObject*        (PyObject*
+                                                    PyObject*/tuple))
 (def-api PyObject_CallMethod      PyObject*        (PyObject*
                                                     nonnull-UTF-8-string
                                                     nonnull-UTF-8-string))
@@ -763,8 +796,9 @@ ___SCMOBJ dst = ___VOID;
 int overflow;
 ___LONGLONG val = PyLong_AsLongLongAndOverflow(src, &overflow);
 
-if (!overflow)
-  {
+if (overflow) {
+  /* TODO: use _PyLong_AsByteArray(...) */
+} else {
     if (___EXT(___LONGLONG_to_SCMOBJ)(___PSTATE,
                                       val,
                                       &dst,
@@ -789,8 +823,47 @@ PyObjectPtr dst = NULL;
 
 if (___FIXNUMP(src)) {
   dst = PyLong_FromLongLong(___INT(src));
-  PYOBJECTPTR_REFCNT_SHOW(dst, \"exact-integer->PyObject*/int\");
+} else {
+
+#ifdef ___LITTLE_ENDIAN
+  /*
+   * Conversion is simple when words are represented in little endian
+   * because bignums are also stored with the big digits from the least
+   * signigicant digit to the most significant digit.  So when viewed
+   * as an array of bytes the bytes are from least significant to most
+   * significant.
+   */
+  dst = _PyLong_FromByteArray(
+          ___CAST(const unsigned char*,___BODY_AS(src,___tSUBTYPED)),
+          ___HD_BYTES(___SUBTYPED_HEADER(src)),
+          1,  /* little_endian */
+          1); /* is_signed */
+#endif
+
+#ifdef ___BIG_ENDIAN
+  /* TODO: use _PyLong_FromByteArray(...) after copying bignum  */
+#endif
 }
+
+PYOBJECTPTR_REFCNT_SHOW(dst, \"exact-integer->PyObject*/int\");
+
+___return(dst);
+
+"))
+
+(define PyObject*/float->flonum
+  (c-lambda (PyObject*/float) double "
+
+___return(PyFloat_AS_DOUBLE(___arg1));
+
+"))
+
+(define flonum->PyObject*/float
+  (c-lambda (double) PyObject*/float "
+
+PyObjectPtr dst = PyFloat_FromDouble(___arg1);
+
+PYOBJECTPTR_REFCNT_SHOW(dst, \"flonum->PyObject*/float\");
 
 ___return(dst);
 
@@ -866,71 +939,6 @@ if (!___STRINGP(src)) {
 
 "))
 
-(define (PyObject*/tuple->vector src)
-  (let ((dst
-         ((c-lambda (PyObject*/tuple) scheme-object "
-
-PyObjectPtr src = ___arg1;
-Py_ssize_t len = PyTuple_GET_SIZE(src);
-___SCMOBJ dst = ___EXT(___make_vector) (___PSTATE, len, ___FIX(0));
-
-if (___FIXNUMP(dst)) {
-  ___return(___VOID);
-} else {
-  Py_ssize_t i;
-  for (i=0; i<len; i++) {
-    PyObjectPtr item = PyTuple_GET_ITEM(src, i);
-    ___SCMOBJ item_scmobj;
-    if (PYOBJECTPTR_OWN_to_SCMOBJ(item, &item_scmobj, ___RETURN_POS)
-        == ___FIX(___NO_ERR)) {
-      ___VECTORSET(dst, ___FIX(i), ___EXT(___release_scmobj) (item_scmobj))
-    } else {
-      ___EXT(___release_scmobj) (dst);
-      ___return(___VOID);
-    }
-  }
-  ___return(___EXT(___release_scmobj) (dst));
-}
-
-")
-          src)))
-    (if (eq? dst (void))
-        (error "PyObject*/tuple->vector conversion error")
-        dst)))
-
-(define vector->PyObject*/tuple
-  (c-lambda (scheme-object) PyObject*/tuple "
-
-___SCMOBJ src = ___arg1;
-
-if (!___VECTORP(src)) {
-  ___return(NULL);
-} else {
-  Py_ssize_t len = ___INT(___VECTORLENGTH(src));
-  PyObjectPtr dst = PyTuple_New(len);
-  if (dst == NULL) {
-    ___return(NULL);
-  } else {
-    Py_ssize_t i;
-    for (i=0; i<len; i++) {
-      ___SCMOBJ item = ___VECTORREF(src,___FIX(i));
-      void* item_py;
-      if (SCMOBJ_to_PYOBJECTPTR(item, &item_py, ___RETURN_POS)
-          == ___FIX(___NO_ERR)) {
-        PYOBJECTPTR_INCREF(___CAST(PyObjectPtr,item_py), \"vector->PyObject*/tuple\");
-        PyTuple_SET_ITEM(dst, i, ___CAST(PyObjectPtr,item_py));
-      } else {
-        PYOBJECTPTR_DECREF(dst, \"vector->PyObject*/tuple\");
-        ___return(NULL);
-      }
-    }
-    PYOBJECTPTR_REFCNT_SHOW(dst, \"vector->PyObject*/tuple\");
-    ___return(dst);
-  }
-}
-
-"))
-
 (define (PyObject*/list->vector src)
   (let ((dst
          ((c-lambda (PyObject*/list) scheme-object "
@@ -996,6 +1004,155 @@ if (!___VECTORP(src)) {
 
 "))
 
+(define (PyObject*/tuple->vector src)
+  (let ((dst
+         ((c-lambda (PyObject*/tuple) scheme-object "
+
+PyObjectPtr src = ___arg1;
+Py_ssize_t len = PyTuple_GET_SIZE(src);
+___SCMOBJ dst = ___EXT(___make_vector) (___PSTATE, len, ___FIX(0));
+
+if (___FIXNUMP(dst)) {
+  ___return(___VOID);
+} else {
+  Py_ssize_t i;
+  for (i=0; i<len; i++) {
+    PyObjectPtr item = PyTuple_GET_ITEM(src, i);
+    ___SCMOBJ item_scmobj;
+    if (PYOBJECTPTR_OWN_to_SCMOBJ(item, &item_scmobj, ___RETURN_POS)
+        == ___FIX(___NO_ERR)) {
+      ___VECTORSET(dst, ___FIX(i), ___EXT(___release_scmobj) (item_scmobj))
+    } else {
+      ___EXT(___release_scmobj) (dst);
+      ___return(___VOID);
+    }
+  }
+  ___return(___EXT(___release_scmobj) (dst));
+}
+
+")
+          src)))
+    (if (eq? dst (void))
+        (error "PyObject*/tuple->vector conversion error")
+        dst)))
+
+(define vector->PyObject*/tuple
+  (c-lambda (scheme-object) PyObject*/tuple "
+
+___SCMOBJ src = ___arg1;
+
+if (!___VECTORP(src)) {
+  ___return(NULL);
+} else {
+  Py_ssize_t len = ___INT(___VECTORLENGTH(src));
+  PyObjectPtr dst = PyTuple_New(len);
+  if (dst == NULL) {
+    ___return(NULL);
+  } else {
+    Py_ssize_t i;
+    for (i=0; i<len; i++) {
+      ___SCMOBJ item = ___VECTORREF(src,___FIX(i));
+      void* item_py;
+      if (SCMOBJ_to_PYOBJECTPTR(item, &item_py, ___RETURN_POS)
+          == ___FIX(___NO_ERR)) {
+        PYOBJECTPTR_INCREF(___CAST(PyObjectPtr,item_py), \"vector->PyObject*/tuple\");
+        PyTuple_SET_ITEM(dst, i, ___CAST(PyObjectPtr,item_py));
+      } else {
+        PYOBJECTPTR_DECREF(dst, \"vector->PyObject*/tuple\");
+        ___return(NULL);
+      }
+    }
+    PYOBJECTPTR_REFCNT_SHOW(dst, \"vector->PyObject*/tuple\");
+    ___return(dst);
+  }
+}
+
+"))
+
+(define (PyObject*/tuple->list src)
+  (vector->list (PyObject*/tuple->vector src)))
+
+(define (list->PyObject*/tuple src)
+  (vector->PyObject*/tuple (list->vector src)))
+
+(define (PyObject*/bytes->u8vector src)
+  (let ((dst
+         ((c-lambda (PyObject*/bytes) scheme-object "
+
+PyObjectPtr src = ___arg1;
+Py_ssize_t len = PyBytes_GET_SIZE(src);
+___SCMOBJ dst = ___EXT(___alloc_scmobj) (___PSTATE, ___sU8VECTOR, len);
+
+if (___FIXNUMP(dst)) {
+  ___return(___VOID);
+} else {
+  memmove(___BODY_AS(dst,___tSUBTYPED), PyBytes_AS_STRING(src), len);
+  ___return(___EXT(___release_scmobj) (dst));
+}
+
+")
+          src)))
+    (if (eq? dst (void))
+        (error "PyObject*/bytes->u8vector conversion error")
+        dst)))
+
+(define u8vector->PyObject*/bytes
+  (c-lambda (scheme-object) PyObject*/bytes "
+
+___SCMOBJ src = ___arg1;
+
+if (!___U8VECTORP(src)) {
+  ___return(NULL);
+} else {
+  Py_ssize_t len = ___INT(___U8VECTORLENGTH(src));
+  PyObjectPtr dst = PyBytes_FromStringAndSize(
+                      ___CAST(char*,___BODY_AS(src,___tSUBTYPED)),
+                      len);
+  PYOBJECTPTR_REFCNT_SHOW(dst, \"u8vector->PyObject*/bytes\");
+  ___return(dst);
+}
+
+"))
+
+(define (PyObject*/bytearray->u8vector src)
+  (let ((dst
+         ((c-lambda (PyObject*/bytearray) scheme-object "
+
+PyObjectPtr src = ___arg1;
+Py_ssize_t len = PyByteArray_GET_SIZE(src);
+___SCMOBJ dst = ___EXT(___alloc_scmobj) (___PSTATE, ___sU8VECTOR, len);
+
+if (___FIXNUMP(dst)) {
+  ___return(___VOID);
+} else {
+  memmove(___BODY_AS(dst,___tSUBTYPED), PyByteArray_AS_STRING(src), len);
+  ___return(___EXT(___release_scmobj) (dst));
+}
+
+")
+          src)))
+    (if (eq? dst (void))
+        (error "PyObject*/bytearray->u8vector conversion error")
+        dst)))
+
+(define u8vector->PyObject*/bytearray
+  (c-lambda (scheme-object) PyObject*/bytearray "
+
+___SCMOBJ src = ___arg1;
+
+if (!___U8VECTORP(src)) {
+  ___return(NULL);
+} else {
+  Py_ssize_t len = ___INT(___U8VECTORLENGTH(src));
+  PyObjectPtr dst = PyByteArray_FromStringAndSize(
+                      ___CAST(char*,___BODY_AS(src,___tSUBTYPED)),
+                      len);
+  PYOBJECTPTR_REFCNT_SHOW(dst, \"u8vector->PyObject*/bytearray\");
+  ___return(dst);
+}
+
+"))
+
 ;;;----------------------------------------------------------------------------
 
 ;; Generic converters.
@@ -1004,25 +1161,20 @@ if (!___VECTORP(src)) {
 
   (define (conv src)
     (case (car (##foreign-tags src))
-      ((PyObject*/None)  (PyObject*/None->void src))
-      ((PyObject*/bool)  (PyObject*/bool->boolean src))
-      ((PyObject*/int)   (PyObject*/int->exact-integer src))
-      ((PyObject*/str)   (PyObject*/str->string src))
-      ((PyObject*/tuple) (list-conv src))
-      ((PyObject*/list)  (vector-conv src))
-      (else              (error "can't convert" src))))
-
-  (define (vector-conv src)
-    (let ((vect (PyObject*/list->vector src)))
-      (let loop ((i (fx- (vector-length vect) 1)))
-        (if (fx< i 0)
-            vect
-            (begin
-              (vector-set! vect i (conv (vector-ref vect i)))
-              (loop (fx- i 1)))))))
+      ((PyObject*/None)      (PyObject*/None->void src))
+      ((PyObject*/bool)      (PyObject*/bool->boolean src))
+      ((PyObject*/int)       (PyObject*/int->exact-integer src))
+      ((PyObject*/float)     (PyObject*/float->flonum src))
+      ((PyObject*/str)       (PyObject*/str->string src))
+      ((PyObject*/bytes)     (PyObject*/bytes->u8vector src))
+      ((PyObject*/bytearray) (PyObject*/bytearray->u8vector src))
+      ((PyObject*/list)      (list-conv src))
+      ((PyObject*/tuple)     (vector-conv src))
+      ((PyObject*/function)  (function-conv src))
+      (else                  (error "can't convert" src))))
 
   (define (list-conv src)
-    (let* ((vect (PyObject*/tuple->vector src))
+    (let* ((vect (PyObject*/list->vector src))
            (len (vector-length vect)))
       (let loop ((i (fx- len 1)) (lst '()))
         (if (fx< i 0)
@@ -1030,6 +1182,22 @@ if (!___VECTORP(src)) {
             (loop (fx- i 1)
                   (cons (conv (vector-ref vect i))
                         lst))))))
+
+  (define (vector-conv src)
+    (let ((vect (PyObject*/tuple->vector src)))
+      (let loop ((i (fx- (vector-length vect) 1)))
+        (if (fx< i 0)
+            vect
+            (begin
+              (vector-set! vect i (conv (vector-ref vect i)))
+              (loop (fx- i 1)))))))
+
+  (define (function-conv callable)
+    (lambda args
+      (PyObject*->object
+       (PyObject_CallFunctionObjArgs*
+        callable
+        (map object->PyObject* args)))))
 
   (if (##foreign? src)
       (conv src)
@@ -1041,20 +1209,12 @@ if (!___VECTORP(src)) {
     (cond ((eq? src (void))             (void->PyObject*/None src))
           ((boolean? src)               (boolean->PyObject*/bool src))
           ((exact-integer? src)         (exact-integer->PyObject*/int src))
+          ((flonum? src)                (flonum->PyObject*/float src))
           ((string? src)                (string->PyObject*/str src))
-          ((vector? src)                (vector-conv src))
+          ((u8vector? src)              (u8vector->PyObject*/bytes src))
           ((or (null? src) (pair? src)) (list-conv src))
+          ((vector? src)                (vector-conv src))
           (else                         (error "can't convert" src))))
-
-  (define (vector-conv src)
-    (let* ((len (vector-length src))
-           (vect (make-vector len)))
-      (let loop ((i (fx- len 1)))
-        (if (fx< i 0)
-            (vector->PyObject*/list vect)
-            (begin
-              (vector-set! vect i (conv (vector-ref src i)))
-              (loop (fx- i 1)))))))
 
   (define (list-conv src)
     (let loop1 ((probe src) (len 0))
@@ -1063,10 +1223,30 @@ if (!___VECTORP(src)) {
           (let ((vect (make-vector len)))
             (let loop2 ((probe src) (i 0))
               (if (not (and (fx< i len) (pair? probe)))
-                  (vector->PyObject*/tuple vect)
+                  (vector->PyObject*/list vect)
                   (begin
                     (vector-set! vect i (conv (car probe)))
                     (loop2 (cdr probe) (fx+ i 1)))))))))
+
+  (define (vector-conv src)
+    (let* ((len (vector-length src))
+           (vect (make-vector len)))
+      (let loop ((i (fx- len 1)))
+        (if (fx< i 0)
+            (vector->PyObject*/tuple vect)
+            (begin
+              (vector-set! vect i (conv (vector-ref src i)))
+              (loop (fx- i 1)))))))
+
+  (define (u8vector-conv src)
+    (let* ((len (vector-length src))
+           (vect (make-vector len)))
+      (let loop ((i (fx- len 1)))
+        (if (fx< i 0)
+            (vector->PyObject*/tuple vect)
+            (begin
+              (vector-set! vect i (conv (vector-ref src i)))
+              (loop (fx- i 1)))))))
 
   (conv src))
 
@@ -1090,7 +1270,74 @@ if (!___VECTORP(src)) {
    (c-lambda () _PyObject*/frozenset "___return(NULL);")
    (c-lambda () _PyObject*/set "___return(NULL);")
    (c-lambda () _PyObject*/tuple "___return(NULL);")
-   (c-lambda () _PyObject*/module "___return(NULL);")))
+   (c-lambda () _PyObject*/module "___return(NULL);")
+   (c-lambda () _PyObject*/type "___return(NULL);")
+   (c-lambda () _PyObject*/function "___return(NULL);")))
+
+;;;----------------------------------------------------------------------------
+
+;; Call Python callables from Scheme.
+
+(define (PyObject_CallFunctionObjArgs callable . args)
+  (PyObject_CallFunctionObjArgs* callable args))
+
+(define (PyObject_CallFunctionObjArgs* callable args)
+  (if (not (pair? args))
+      (PyObject_CallFunctionObjArgs0 callable)
+      (let ((arg1 (car args))
+            (rest (cdr args)))
+        (if (not (pair? rest))
+            (PyObject_CallFunctionObjArgs1 callable arg1)
+            (let ((arg2 (car rest))
+                  (rest (cdr rest)))
+              (if (not (pair? rest))
+                  (PyObject_CallFunctionObjArgs2 callable arg1 arg2)
+                  (let ((arg3 (car rest))
+                        (rest (cdr rest)))
+                    (if (not (pair? rest))
+                        (PyObject_CallFunctionObjArgs3 callable arg1 arg2 arg3)
+                        (let ((arg4 (car rest))
+                              (rest (cdr rest)))
+                          (if (not (pair? rest))
+                              (PyObject_CallFunctionObjArgs4 callable arg1 arg2 arg3 arg4)
+                              (PyObject_CallObject
+                               callable
+                               (list->PyObject*/tuple args))))))))))))
+
+(define PyObject_CallFunctionObjArgs0
+  (c-lambda (PyObject*) PyObject* "
+
+return_with_check_PyObjectPtr(PyObject_CallFunctionObjArgs(___arg1, NULL));
+
+"))
+
+(define PyObject_CallFunctionObjArgs1
+  (c-lambda (PyObject* PyObject*) PyObject* "
+
+return_with_check_PyObjectPtr(PyObject_CallFunctionObjArgs(___arg1, ___arg2, NULL));
+
+"))
+
+(define PyObject_CallFunctionObjArgs2
+  (c-lambda (PyObject* PyObject* PyObject*) PyObject* "
+
+return_with_check_PyObjectPtr(PyObject_CallFunctionObjArgs(___arg1, ___arg2, ___arg3, NULL));
+
+"))
+
+(define PyObject_CallFunctionObjArgs3
+  (c-lambda (PyObject* PyObject* PyObject* PyObject*) PyObject* "
+
+return_with_check_PyObjectPtr(PyObject_CallFunctionObjArgs(___arg1, ___arg2, ___arg3, ___arg4, NULL));
+
+"))
+
+(define PyObject_CallFunctionObjArgs4
+  (c-lambda (PyObject* PyObject* PyObject* PyObject* PyObject*) PyObject* "
+
+return_with_check_PyObjectPtr(PyObject_CallFunctionObjArgs(___arg1, ___arg2, ___arg3, ___arg4, ___arg5, NULL));
+
+"))
 
 ;;;----------------------------------------------------------------------------
 
@@ -1128,6 +1375,8 @@ if (!___VECTORP(src)) {
       PyObject*/set
       PyObject*/tuple
       PyObject*/module
+      PyObject*/type
+      PyObject*/function
       ))
   (for-each PyObject*-register-foreign-write-handler python-subtypes))
 
@@ -1184,10 +1433,17 @@ if (!___VECTORP(src)) {
     ;; Set the module to be accessible inside the __main__ dict.
     (PyDict_SetItemString dict m module)))
 
-(define (py s)
+(define (py-eval s)
   (let ((python-interpreter (current-python-interpreter)))
     (PyRun_String s
                   Py_eval_input
+                  (python-interpreter-globals python-interpreter)
+                  (python-interpreter-globals python-interpreter))))
+
+(define (py-exec s)
+  (let ((python-interpreter (current-python-interpreter)))
+    (PyRun_String s
+                  Py_file_input
                   (python-interpreter-globals python-interpreter)
                   (python-interpreter-globals python-interpreter))))
 

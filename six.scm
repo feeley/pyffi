@@ -74,7 +74,7 @@
     (define (else-handler sexp)
       (let* ((tree (convert sexp python))
              (code (tree-to-string tree)))
-        `(py ,code)))
+        `(py-eval ,code)))
 
     (define (import-handler sexp)
       ;; NOTE: convert expects (list foo bar . baz)
