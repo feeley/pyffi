@@ -149,6 +149,7 @@ end-of-c-declare
                  PyObject*/module
                  PyObject*/type
                  PyObject*/function
+                 PyObject*/cell
                  )))
 
 (c-define-type PyObject*
@@ -200,6 +201,7 @@ end-of-c-declare
 (define-python-subtype-type "module")
 (define-python-subtype-type "type")
 (define-python-subtype-type "function")
+(define-python-subtype-type "cell")
 
 ;;;----------------------------------------------------------------------------
 
@@ -345,6 +347,12 @@ ___SCMOBJ PYOBJECTPTR_to_SCMOBJ(PyObjectPtr src, ___SCMOBJ *dst, int arg_num) {
   else
 #endif
 
+#ifdef ___C_TAG_PyObject_2a__2f_cell
+  if (PyCell_Check(src))
+    tag = ___C_TAG_PyObject_2a__2f_cell;
+  else
+#endif
+
   tag = ___C_TAG_PyObject_2a_;
 
   PYOBJECTPTR_REFCNT_SHOW(src, "PYOBJECTPTR_to_SCMOBJ");
@@ -439,6 +447,10 @@ ___SCMOBJ SCMOBJ_to_PYOBJECTPTR(___SCMOBJ src, void **dst, int arg_num) {
   TRY_CONVERT_TO_NONNULLPOINTER(___C_TAG_PyObject_2a__2f_function);
 #endif
 
+#ifdef ___C_TAG_PyObject_2a__2f_cell
+  TRY_CONVERT_TO_NONNULLPOINTER(___C_TAG_PyObject_2a__2f_cell);
+#endif
+
   return CONVERT_TO_NONNULLPOINTER(___C_TAG_PyObject_2a_);
 }
 
@@ -522,6 +534,7 @@ ___SCMOBJ SCMOBJ_to_PYOBJECTPTR" _SUBTYPE "(___SCMOBJ src, void **dst, int arg_n
 (define-subtype-converters "module"    "PyModule_CheckExact(src)")
 (define-subtype-converters "type"      "PyType_CheckExact(src)")
 (define-subtype-converters "function"  "PyFunction_Check(src)")
+(define-subtype-converters "cell"      "PyCell_Check(src)")
 
 ;;;----------------------------------------------------------------------------
 
@@ -688,10 +701,24 @@ end-of-c-declare
 (def-api PyModule_GetDict         PyObject*/dict   (PyObject*/module))
 
 (def-api PyDict_New               PyObject*/dict   ())
+(def-api PyDict_Size              ssize_t          (PyObject*/dict))
+(def-api PyDict_Items             PyObject*/list   (PyObject*/dict))
+(def-api PyDict_Keys              PyObject*/list   (PyObject*/dict))
+(def-api PyDict_Values            PyObject*/list   (PyObject*/dict))
+(def-api PyDict_GetItem           PyObject*        (PyObject*/dict
+                                                    PyObject*))
+(def-api PyDict_SetItem           int              (PyObject*/dict
+                                                    PyObject*
+                                                    PyObject*))
 (def-api PyDict_GetItemString     PyObject*        (PyObject*/dict
                                                     nonnull-UTF-8-string))
 (def-api PyDict_SetItemString     int              (PyObject*/dict
                                                     nonnull-UTF-8-string
+                                                    PyObject*))
+
+(def-api PyCell_New               PyObject*/cell   (PyObject*))
+(def-api PyCell_Get               PyObject*        (PyObject*/cell))
+(def-api PyCell_Set               int              (PyObject*/cell
                                                     PyObject*))
 
 (def-api PyList_New               PyObject*/list   (int))
@@ -1036,6 +1063,12 @@ if (___FIXNUMP(dst)) {
         (error "PyObject*/tuple->vector conversion error")
         dst)))
 
+(define (PyObject*/list->list src)
+  (vector->list (PyObject*/list->vector src)))
+
+(define (list->PyObject*/list src)
+  (vector->PyObject*/list (list->vector src)))
+
 (define vector->PyObject*/tuple
   (c-lambda (scheme-object) PyObject*/tuple "
 
@@ -1170,7 +1203,9 @@ if (!___U8VECTORP(src)) {
       ((PyObject*/bytearray) (PyObject*/bytearray->u8vector src))
       ((PyObject*/list)      (list-conv src))
       ((PyObject*/tuple)     (vector-conv src))
-      ((PyObject*/function)  (function-conv src))
+      ((PyObject*/dict)      (table-conv src))
+      ((PyObject*/function)  (procedure-conv src))
+      ((PyObject*/cell)      (PyCell_Get src))
       (else                  (error "can't convert" src))))
 
   (define (list-conv src)
@@ -1192,7 +1227,17 @@ if (!___U8VECTORP(src)) {
               (vector-set! vect i (conv (vector-ref vect i)))
               (loop (fx- i 1)))))))
 
-  (define (function-conv callable)
+  (define (table-conv src)
+    (let ((table (make-table)))
+      (for-each (lambda (key)
+                  (let ((val (PyDict_GetItem src key)))
+                    (table-set! table
+                                (PyObject*->object key)
+                                (PyObject*->object val))))
+                (PyObject*/list->list (PyDict_Keys src)))
+      table))
+
+  (define (procedure-conv callable)
     (lambda args
       (PyObject*->object
        (PyObject_CallFunctionObjArgs*
@@ -1214,7 +1259,30 @@ if (!___U8VECTORP(src)) {
           ((u8vector? src)              (u8vector->PyObject*/bytes src))
           ((or (null? src) (pair? src)) (list-conv src))
           ((vector? src)                (vector-conv src))
-          (else                         (error "can't convert" src))))
+          ((table? src)                 (table-conv src))
+          ((and (##foreign? src)
+                (memq (car (##foreign-tags src))
+                      '(PyObject*
+                        PyObject*/None
+                        PyObject*/bool
+                        PyObject*/int
+                        PyObject*/float
+                        PyObject*/complex
+                        PyObject*/bytes
+                        PyObject*/bytearray
+                        PyObject*/str
+                        PyObject*/list
+                        PyObject*/dict
+                        PyObject*/frozenset
+                        PyObject*/set
+                        PyObject*/tuple
+                        PyObject*/module
+                        PyObject*/type
+                        PyObject*/function
+                        PyObject*/cell)))
+           src)
+          (else
+           (error "can't convert" src))))
 
   (define (list-conv src)
     (let loop1 ((probe src) (len 0))
@@ -1248,6 +1316,16 @@ if (!___U8VECTORP(src)) {
               (vector-set! vect i (conv (vector-ref src i)))
               (loop (fx- i 1)))))))
 
+  (define (table-conv src)
+    (let ((dst (PyDict_New)))
+      (table-for-each
+       (lambda (key val)
+         (PyDict_SetItem dst
+                         (object->PyObject* key)
+                         (object->PyObject* val)))
+       src)
+      dst))
+
   (conv src))
 
 ;;;----------------------------------------------------------------------------
@@ -1272,7 +1350,8 @@ if (!___U8VECTORP(src)) {
    (c-lambda () _PyObject*/tuple "___return(NULL);")
    (c-lambda () _PyObject*/module "___return(NULL);")
    (c-lambda () _PyObject*/type "___return(NULL);")
-   (c-lambda () _PyObject*/function "___return(NULL);")))
+   (c-lambda () _PyObject*/function "___return(NULL);")
+   (c-lambda () _PyObject*/cell "___return(NULL);")))
 
 ;;;----------------------------------------------------------------------------
 
@@ -1377,6 +1456,7 @@ return_with_check_PyObjectPtr(PyObject_CallFunctionObjArgs(___arg1, ___arg2, ___
       PyObject*/module
       PyObject*/type
       PyObject*/function
+      PyObject*/cell
       ))
   (for-each PyObject*-register-foreign-write-handler python-subtypes))
 
@@ -1453,6 +1533,8 @@ return_with_check_PyObjectPtr(PyObject_CallFunctionObjArgs(___arg1, ___arg2, ___
 
 (define main-python-interpreter (make-main-python-interpreter))
 (define current-python-interpreter (make-parameter main-python-interpreter))
+
+(py-exec "foreign = lambda x: (lambda:x).__closure__[0]")
 
 ;; Foreign write handlers are registered as a side-effect
 ;; at module import time for convenience of pretty-printing.

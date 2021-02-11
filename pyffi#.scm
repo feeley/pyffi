@@ -38,6 +38,12 @@
 
               ;; PyDict_*
               PyDict_New
+              PyDict_Size
+              PyDict_Items
+              PyDict_Keys
+              PyDict_Values
+              PyDict_GetItem
+              PyDict_SetItem
               PyDict_GetItemString
               PyDict_SetItemString
 
@@ -91,6 +97,8 @@
               u8vector->PyObject*/bytearray
               PyObject*/list->vector
               vector->PyObject*/list
+              PyObject*/list->list
+              list->PyObject*/list
               PyObject*/tuple->vector
               vector->PyObject*/tuple
               PyObject*/tuple->list
