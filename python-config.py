@@ -119,8 +119,8 @@ if system == "windows" and LIBDIR is None:
 elif system == "darwin":
     # Set @rpath when using clang
     PYTHONFRAMEWORKPREFIX = getvar("PYTHONFRAMEWORKPREFIX")
-    if PYTHONFRAMEWORKPREFIX != "" and compiler.name == "clang":
-        compiler.cflags.append(f"-rpath {PYTHONFRAMEWORKPREFIX}")
+    if PYTHONFRAMEWORKPREFIX != "":
+        compiler.cflags.append(f"-Wl,-rpath -Wl,{PYTHONFRAMEWORKPREFIX}")
 
 
 # Configure ldflags
